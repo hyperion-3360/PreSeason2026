@@ -9,14 +9,18 @@ import static edu.wpi.first.units.Units.*;
 import com.ctre.phoenix6.swerve.SwerveModule.DriveRequestType;
 import com.ctre.phoenix6.swerve.SwerveRequest;
 
+import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.wpilibj.RobotBase;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
+import edu.wpi.first.wpilibj2.command.button.Trigger;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.swerve.CommandSwerveDrivetrain;
+import frc.robot.subsystems.util.CalibrateAzimuthPersist;
 
 public class RobotContainer {
     private double MaxSpeed = TunerConstants.kSpeedAt12Volts.in(MetersPerSecond); // kSpeedAt12Volts desired top speed
@@ -45,9 +49,9 @@ public class RobotContainer {
         drivetrain.setDefaultCommand(
             // Drivetrain will execute this command periodically
             drivetrain.applyRequest(() ->
-                drive.withVelocityX(-joystick.getLeftY() * MaxSpeed) // Drive forward with negative Y (forward)
-                    .withVelocityY(-joystick.getLeftX() * MaxSpeed) // Drive left with negative X (left)
-                    .withRotationalRate(-joystick.getRightX() * MaxAngularRate) // Drive counterclockwise with negative X (left)
+                drive.withVelocityX(-MathUtil.applyDeadband(joystick.getLeftY(), 0.06) * MaxSpeed)
+                .withVelocityY(-MathUtil.applyDeadband(joystick.getLeftX(), 0.06) * MaxSpeed)
+                .withRotationalRate(-MathUtil.applyDeadband(joystick.getRightX(), 0.06) * MaxAngularRate)
             )
         );
 
@@ -74,7 +78,21 @@ public class RobotContainer {
         joystick.leftBumper().onTrue(drivetrain.runOnce(() -> drivetrain.seedFieldCentric()));
 
         drivetrain.registerTelemetry(logger::telemeterize);
-    }
+    
+        // ---- Zero Azimuth Mode (flash persist) ----
+        // Hold X + Y + A + B simultaneously for 3 seconds to run calibration.
+        Trigger zeroCombo = joystick.x().and(joystick.y()).and(joystick.a()).and(joystick.b()).debounce(3.0);
+
+        var realSeq =
+            Commands.print("[ZeroMode] Starting azimuth zero (hold combo met for 3s)...")
+                .andThen(new CalibrateAzimuthPersist())
+                .andThen(Commands.print("[ZeroMode] Done. Offsets written to CANcoder flash."));
+
+        var simSeq =
+            Commands.print("[ZeroMode] Skipped in simulation: no real CAN / no FLASH writes.");
+
+        zeroCombo.onTrue(Commands.either(realSeq, simSeq, RobotBase::isReal));
+}
 
     public Command getAutonomousCommand() {
         return Commands.print("No autonomous command configured");
