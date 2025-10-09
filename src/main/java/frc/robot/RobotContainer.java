@@ -21,6 +21,7 @@ import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.swerve.CommandSwerveDrivetrain;
 import frc.robot.subsystems.util.CalibrateAzimuthPersist;
+import frc.robot.subsystems.util.Haptics;
 
 public class RobotContainer {
     private double MaxSpeed = TunerConstants.kSpeedAt12Volts.in(MetersPerSecond); // kSpeedAt12Volts desired top speed
@@ -78,6 +79,8 @@ public class RobotContainer {
         joystick.leftBumper().onTrue(drivetrain.runOnce(() -> drivetrain.seedFieldCentric()));
 
         drivetrain.registerTelemetry(logger::telemeterize);
+
+        joystick.b().onTrue(Haptics.buzzOK(joystick));//test
     
         // ---- Zero Azimuth Mode (flash persist) ----
         // Hold X + Y + A + B simultaneously for 3 seconds to run calibration.
