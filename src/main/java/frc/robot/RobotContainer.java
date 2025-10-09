@@ -11,6 +11,7 @@ import com.ctre.phoenix6.swerve.SwerveRequest;
 
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.wpilibj.RobotBase;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
@@ -19,6 +20,7 @@ import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.swerve.CommandSwerveDrivetrain;
+import frc.robot.subsystems.util.CalibrateAzimuthPersist;
 
 public class RobotContainer {
     private double MaxSpeed = TunerConstants.kSpeedAt12Volts.in(MetersPerSecond); // kSpeedAt12Volts desired top speed
@@ -77,14 +79,19 @@ public class RobotContainer {
 
         drivetrain.registerTelemetry(logger::telemeterize);
     
-        // ---- Zero Azimuth Mode ----
-        // Hold X + Y + A + B simultaneously for 3 seconds to persist CANcoder MagnetOffset to flash.
+        // ---- Zero Azimuth Mode (flash persist) ----
+        // Hold X + Y + A + B simultaneously for 3 seconds to run calibration.
         Trigger zeroCombo = joystick.x().and(joystick.y()).and(joystick.a()).and(joystick.b()).debounce(3.0);
-        zeroCombo.onTrue(
-            Commands.runOnce(() -> System.out.println("[ZeroMode] Starting azimuth zero (hold combo met for 3s)..."))
+
+        var realSeq =
+            Commands.print("[ZeroMode] Starting azimuth zero (hold combo met for 3s)...")
                 .andThen(new CalibrateAzimuthPersist())
-                .andThen(Commands.runOnce(() -> System.out.println("[ZeroMode] Done. Offsets written to CANcoder flash.")))
-        );
+                .andThen(Commands.print("[ZeroMode] Done. Offsets written to CANcoder flash."));
+
+        var simSeq =
+            Commands.print("[ZeroMode] Skipped in simulation: no real CAN / no FLASH writes.");
+
+        zeroCombo.onTrue(Commands.either(realSeq, simSeq, RobotBase::isReal));
 }
 
     public Command getAutonomousCommand() {
