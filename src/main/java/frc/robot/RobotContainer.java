@@ -11,18 +11,21 @@ import com.ctre.phoenix6.swerve.SwerveRequest;
 
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.wpilibj.RobotBase;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.swerve.CommandSwerveDrivetrain;
+import frc.robot.subsystems.util.CalibrateAzimuthPersist;
+import frc.robot.subsystems.util.Haptics;
 
 public class RobotContainer {
     private double MaxSpeed = TunerConstants.kSpeedAt12Volts.in(MetersPerSecond); // kSpeedAt12Volts desired top speed
     private double MaxAngularRate = RotationsPerSecond.of(0.75).in(RadiansPerSecond); // 3/4 of a rotation per second max angular velocity
+    private double deadBandJoyStick = 0.06;
 
     /* Setting up bindings for necessary control of the swerve drive platform */
     private final SwerveRequest.FieldCentric drive = new SwerveRequest.FieldCentric()
@@ -47,9 +50,9 @@ public class RobotContainer {
         drivetrain.setDefaultCommand(
             // Drivetrain will execute this command periodically
             drivetrain.applyRequest(() ->
-                drive.withVelocityX(-MathUtil.applyDeadband(joystick.getLeftY(), 0.06) * MaxSpeed)
-                .withVelocityY(-MathUtil.applyDeadband(joystick.getLeftX(), 0.06) * MaxSpeed)
-                .withRotationalRate(-MathUtil.applyDeadband(joystick.getRightX(), 0.06) * MaxAngularRate)
+                drive.withVelocityX(-MathUtil.applyDeadband(joystick.getLeftY(), deadBandJoyStick) * MaxSpeed)
+                .withVelocityY(-MathUtil.applyDeadband(joystick.getLeftX(), deadBandJoyStick) * MaxSpeed)
+                .withRotationalRate(-MathUtil.applyDeadband(joystick.getRightX(), deadBandJoyStick) * MaxAngularRate)
             )
         );
 
@@ -60,10 +63,11 @@ public class RobotContainer {
             drivetrain.applyRequest(() -> idle).ignoringDisable(true)
         );
 
-        joystick.a().whileTrue(drivetrain.applyRequest(() -> brake));
+        //Might be used later, keeping it here for example. 
+        /*joystick.a().whileTrue(drivetrain.applyRequest(() -> brake));
         joystick.b().whileTrue(drivetrain.applyRequest(() ->
             point.withModuleDirection(new Rotation2d(-joystick.getLeftY(), -joystick.getLeftX()))
-        ));
+        ));*/
 
         // Run SysId routines when holding back/start and X/Y.
         // Note that each routine should be run exactly once in a single log.
@@ -77,14 +81,24 @@ public class RobotContainer {
 
         drivetrain.registerTelemetry(logger::telemeterize);
     
-        // ---- Zero Azimuth Mode ----
-        // Hold X + Y + A + B simultaneously for 3 seconds to persist CANcoder MagnetOffset to flash.
-        Trigger zeroCombo = joystick.x().and(joystick.y()).and(joystick.a()).and(joystick.b()).debounce(3.0);
-        zeroCombo.onTrue(
-            Commands.runOnce(() -> System.out.println("[ZeroMode] Starting azimuth zero (hold combo met for 3s)..."))
-                .andThen(new CalibrateAzimuthPersist())
-                .andThen(Commands.runOnce(() -> System.out.println("[ZeroMode] Done. Offsets written to CANcoder flash.")))
-        );
+        // Combo: hold X + Y + A + B for 3 seconds
+        var zeroCombo = joystick.x().and(joystick.y()).and(joystick.a()).and(joystick.b()).debounce(3.0);
+
+        // Sequences (Disabled only)
+        var seqRealDisabled =
+            Commands.print("[ZeroMode] Starting (DISABLED)…")
+                .andThen(new CalibrateAzimuthPersist().ignoringDisable(true))
+                .andThen(Commands.print("[ZeroMode] Done. Offsets written to CANcoder flash."));
+
+        var seqSimDisabled =
+            Commands.print("[ZeroMode] Skipped in simulation: no real CAN / no FLASH writes.");
+
+        // Bind once, schedule two commands on the same trigger:
+        //  1) run zero sequence (real vs sim)
+        //  2) rumble for a quick feedback
+        var disabledZero = RobotModeTriggers.disabled().and(zeroCombo);
+        disabledZero.onTrue(Commands.either(seqRealDisabled, seqSimDisabled, RobotBase::isReal));
+        disabledZero.onTrue(Haptics.buzzOK(joystick));
 }
 
     public Command getAutonomousCommand() {
