@@ -26,6 +26,14 @@ Ce dépôt sert à préparer la saison officielle de la compétition **FIRST Rob
 
 ## 🧑‍💻 Structure du projet
 
-...
-
+src/
+└─ main/
+   └─ java/frc/robot/
+      ├─ Robot.java                    # Cycle WPILib (init/periodic/disabled/autonomous/teleop)
+      ├─ RobotContainer.java           # Déclarations des commandes, bindings manette, auto chooser
+      ├─ RobotConfig.java              # Switch WCP ↔ SDS MK4i (IDs/ratios/inversions)
+      └─ generated/TunerConstants.java # Généré par Tuner X (patché pour lire RobotConfig)
+vendordeps/                            # Dépendances (ex. Phoenix 6)
+build.gradle / gradlew*                # Build & déploiement
+README.md
 
