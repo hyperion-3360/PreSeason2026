@@ -1,6 +1,14 @@
 plugins {
-    id "java"
-    id "edu.wpi.first.GradleRIO" version "2025.3.2"
+    id 'java'
+    id 'edu.wpi.first.GradleRIO' version '2025.3.2'
+    id 'com.diffplug.spotless' version '6.25.0'   
+}
+
+spotless {
+    java {
+        googleJavaFormat('1.22.0').aosp()    
+        target 'src/**/*.java'
+    }
 }
 
 java {
