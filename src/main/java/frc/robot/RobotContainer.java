@@ -13,6 +13,7 @@ import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
+import edu.wpi.first.wpilibj2.command.button.Trigger;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
@@ -75,7 +76,16 @@ public class RobotContainer {
         joystick.leftBumper().onTrue(drivetrain.runOnce(() -> drivetrain.seedFieldCentric()));
 
         drivetrain.registerTelemetry(logger::telemeterize);
-    }
+    
+        // ---- Zero Azimuth Mode ----
+        // Hold X + Y + A + B simultaneously for 3 seconds to persist CANcoder MagnetOffset to flash.
+        Trigger zeroCombo = joystick.x().and(joystick.y()).and(joystick.a()).and(joystick.b()).debounce(3.0);
+        zeroCombo.onTrue(
+            Commands.runOnce(() -> System.out.println("[ZeroMode] Starting azimuth zero (hold combo met for 3s)..."))
+                .andThen(new CalibrateAzimuthPersist())
+                .andThen(Commands.runOnce(() -> System.out.println("[ZeroMode] Done. Offsets written to CANcoder flash.")))
+        );
+}
 
     public Command getAutonomousCommand() {
         return Commands.print("No autonomous command configured");
