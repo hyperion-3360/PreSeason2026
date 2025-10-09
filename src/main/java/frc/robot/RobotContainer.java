@@ -105,17 +105,17 @@ public class RobotContainer {
         // Hold X + Y + A + B simultaneously for 3 seconds to run calibration.
         Trigger zeroCombo =
                 joystick.x().and(joystick.y()).and(joystick.a()).and(joystick.b()).debounce(3.0);
-        //sequence with the real robot
+        // sequence with the real robot
         var realSeq =
                 Commands.print("[ZeroMode] Starting azimuth zero (hold combo met for 3s)...")
                         .andThen(new CalibrateAzimuthPersist())
                         .andThen(
                                 Commands.print(
                                         "[ZeroMode] Done. Offsets written to CANcoder flash."));
-        //sequence in Sim
+        // sequence in Sim
         var simSeq =
                 Commands.print("[ZeroMode] Skipped in simulation: no real CAN / no FLASH writes.");
-        //execute zero azimuth
+        // execute zero azimuth
         zeroCombo.onTrue(Commands.either(realSeq, simSeq, RobotBase::isReal));
     }
 
