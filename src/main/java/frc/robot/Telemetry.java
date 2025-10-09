@@ -99,24 +99,16 @@ public class Telemetry {
             new MechanismLigament2d[] {
                 m_moduleMechanisms[0]
                         .getRoot("RootDirection", 0.5, 0.5)
-                        .append(
-                                new MechanismLigament2d(
-                                        "Direction", 0.1, 0, 0, new Color8Bit(Color.kWhite))),
+                        .append(new MechanismLigament2d("Direction", 0.1, 0, 0, new Color8Bit(Color.kWhite))),
                 m_moduleMechanisms[1]
                         .getRoot("RootDirection", 0.5, 0.5)
-                        .append(
-                                new MechanismLigament2d(
-                                        "Direction", 0.1, 0, 0, new Color8Bit(Color.kWhite))),
+                        .append(new MechanismLigament2d( "Direction", 0.1, 0, 0, new Color8Bit(Color.kWhite))),
                 m_moduleMechanisms[2]
                         .getRoot("RootDirection", 0.5, 0.5)
-                        .append(
-                                new MechanismLigament2d(
-                                        "Direction", 0.1, 0, 0, new Color8Bit(Color.kWhite))),
+                        .append(new MechanismLigament2d("Direction", 0.1, 0, 0, new Color8Bit(Color.kWhite))),
                 m_moduleMechanisms[3]
                         .getRoot("RootDirection", 0.5, 0.5)
-                        .append(
-                                new MechanismLigament2d(
-                                        "Direction", 0.1, 0, 0, new Color8Bit(Color.kWhite))),
+                        .append(new MechanismLigament2d("Direction", 0.1, 0, 0, new Color8Bit(Color.kWhite))),
             };
 
     private final double[] m_poseArray = new double[3];

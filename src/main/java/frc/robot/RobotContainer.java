@@ -55,17 +55,13 @@ public class RobotContainer {
         // and Y is defined as to the left according to WPILib convention.
         drivetrain.setDefaultCommand(
                 // Drivetrain will execute this command periodically
-                drivetrain.applyRequest(
-                        () ->
-                                drive.withVelocityX(
-                                                -MathUtil.applyDeadband(joystick.getLeftY(), 0.06)
-                                                        * MaxSpeed)
-                                        .withVelocityY(
-                                                -MathUtil.applyDeadband(joystick.getLeftX(), 0.06)
-                                                        * MaxSpeed)
-                                        .withRotationalRate(
-                                                -MathUtil.applyDeadband(joystick.getRightX(), 0.06)
-                                                        * MaxAngularRate)));
+                drivetrain.applyRequest(() ->
+                    drive.withVelocityX(
+                                    -MathUtil.applyDeadband(joystick.getLeftY(), 0.06) * MaxSpeed)
+                            .withVelocityY(
+                                    -MathUtil.applyDeadband(joystick.getLeftX(), 0.06) * MaxSpeed)
+                            .withRotationalRate(
+                                    -MathUtil.applyDeadband(joystick.getRightX(), 0.06) * MaxAngularRate)));
 
         // Idle while the robot is disabled. This ensures the configured
         // neutral mode is applied to the drive motors while disabled.
@@ -74,25 +70,16 @@ public class RobotContainer {
                 .whileTrue(drivetrain.applyRequest(() -> idle).ignoringDisable(true));
 
         joystick.a().whileTrue(drivetrain.applyRequest(() -> brake));
-        joystick.b()
-                .whileTrue(
-                        drivetrain.applyRequest(
-                                () ->
-                                        point.withModuleDirection(
-                                                new Rotation2d(
-                                                        -joystick.getLeftY(),
-                                                        -joystick.getLeftX()))));
+        joystick.b().whileTrue(drivetrain.applyRequest(() ->
+            point.withModuleDirection(new Rotation2d(-joystick.getLeftY(), -joystick.getLeftX()))
+        ));
 
         // Run SysId routines when holding back/start and X/Y.
         // Note that each routine should be run exactly once in a single log.
         joystick.back().and(joystick.y()).whileTrue(drivetrain.sysIdDynamic(Direction.kForward));
         joystick.back().and(joystick.x()).whileTrue(drivetrain.sysIdDynamic(Direction.kReverse));
-        joystick.start()
-                .and(joystick.y())
-                .whileTrue(drivetrain.sysIdQuasistatic(Direction.kForward));
-        joystick.start()
-                .and(joystick.x())
-                .whileTrue(drivetrain.sysIdQuasistatic(Direction.kReverse));
+        joystick.start().and(joystick.y()).whileTrue(drivetrain.sysIdQuasistatic(Direction.kForward));
+        joystick.start().and(joystick.x()).whileTrue(drivetrain.sysIdQuasistatic(Direction.kReverse));
 
         // reset the field-centric heading on left bumper press
         joystick.leftBumper().onTrue(drivetrain.runOnce(() -> drivetrain.seedFieldCentric()));
@@ -109,9 +96,7 @@ public class RobotContainer {
         var realSeq =
                 Commands.print("[ZeroMode] Starting azimuth zero (hold combo met for 3s)...")
                         .andThen(new CalibrateAzimuthPersist())
-                        .andThen(
-                                Commands.print(
-                                        "[ZeroMode] Done. Offsets written to CANcoder flash."));
+                        .andThen(Commands.print("[ZeroMode] Done. Offsets written to CANcoder flash."));
         //sequence in Sim
         var simSeq =
                 Commands.print("[ZeroMode] Skipped in simulation: no real CAN / no FLASH writes.");

@@ -151,8 +151,7 @@ public class CalibrateAzimuthPersist extends Command {
         } else if (sc.isWarning()) {
             // FLASH commits often cause a brief comm warning; that's expected.
             System.out.printf(
-                    "[SwerveCal][WARN] FLASH write status: %s (expected during FLASH commit)%n",
-                    name);
+                    "[SwerveCal][WARN] FLASH write status: %s (expected during FLASH commit)%n",name);
         } else {
             System.out.printf("[SwerveCal] FLASH write status: %s%n", name);
         }
