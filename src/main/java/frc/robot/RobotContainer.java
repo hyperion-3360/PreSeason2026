@@ -21,11 +21,21 @@ import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.swerve.CommandSwerveDrivetrain;
 import frc.robot.subsystems.util.CalibrateAzimuthPersist;
 import frc.robot.subsystems.util.Haptics;
+import frc.robot.subsystems.util.JerkSnapLimiter4th;
+
 
 public class RobotContainer {
     private double MaxSpeed = TunerConstants.kSpeedAt12Volts.in(MetersPerSecond); // kSpeedAt12Volts desired top speed
     private double MaxAngularRate = RotationsPerSecond.of(0.75).in(RadiansPerSecond); // 3/4 of a rotation per second max angular velocity
     private double deadBandJoyStick = 0.06;
+
+    // 4th-order limiters for joystick → smooth vx, vy, omega
+    private final JerkSnapLimiter4th vxLim =
+    new JerkSnapLimiter4th(4.0, 16.0, 160.0, 1600.0, 0.25, 0.0);
+    private final JerkSnapLimiter4th vyLim =
+    new JerkSnapLimiter4th(4.0, 16.0, 160.0, 1600.0, 0.25, 0.0);
+    private final JerkSnapLimiter4th omLim =
+    new JerkSnapLimiter4th(4.0, 16.0, 160.0, 1600.0, 0.30, 0.0); // yaw a touch smoother
 
     /* Setting up bindings for necessary control of the swerve drive platform */
     private final SwerveRequest.FieldCentric drive = new SwerveRequest.FieldCentric()
@@ -45,61 +55,66 @@ public class RobotContainer {
     }
 
     private void configureBindings() {
-        // Note that X is defined as forward according to WPILib convention,
-        // and Y is defined as to the left according to WPILib convention.
+        // Default drive: joystick → 4th-order filtered → robot units
         drivetrain.setDefaultCommand(
-            // Drivetrain will execute this command periodically
-            drivetrain.applyRequest(() ->
-                drive.withVelocityX(-MathUtil.applyDeadband(joystick.getLeftY(), deadBandJoyStick) * MaxSpeed)
-                .withVelocityY(-MathUtil.applyDeadband(joystick.getLeftX(), deadBandJoyStick) * MaxSpeed)
-                .withRotationalRate(-MathUtil.applyDeadband(joystick.getRightX(), deadBandJoyStick) * MaxAngularRate)
-            )
+            drivetrain.applyRequest(() -> {
+              double rawVX = -MathUtil.applyDeadband(joystick.getLeftY(),  deadBandJoyStick); 
+              double rawVY = -MathUtil.applyDeadband(joystick.getLeftX(),  deadBandJoyStick); 
+              double rawOM = -MathUtil.applyDeadband(joystick.getRightX(), deadBandJoyStick);
+      
+              double vxUnit = vxLim.calculate(rawVX); // expects vxLim/vyLim/omLim fields
+              double vyUnit = vyLim.calculate(rawVY);
+              double omUnit = omLim.calculate(rawOM);
+      
+              return drive
+                  .withVelocityX(vxUnit * MaxSpeed)
+                  .withVelocityY(vyUnit * MaxSpeed)
+                  .withRotationalRate(omUnit * MaxAngularRate);
+            })
         );
-
-        // Idle while the robot is disabled. This ensures the configured
-        // neutral mode is applied to the drive motors while disabled.
+      
+        // Idle while Disabled (keeps neutral mode applied)
         final var idle = new SwerveRequest.Idle();
         RobotModeTriggers.disabled().whileTrue(
             drivetrain.applyRequest(() -> idle).ignoringDisable(true)
         );
-
-        //Might be used later, keeping it here for example. 
-        /*joystick.a().whileTrue(drivetrain.applyRequest(() -> brake));
-        joystick.b().whileTrue(drivetrain.applyRequest(() ->
-            point.withModuleDirection(new Rotation2d(-joystick.getLeftY(), -joystick.getLeftX()))
-        ));*/
-
-        // Run SysId routines when holding back/start and X/Y.
-        // Note that each routine should be run exactly once in a single log.
+      
+        // Reset filters when entering Disabled (prevents carry-over feel)
+        RobotModeTriggers.disabled().onTrue(
+            Commands.runOnce(() -> {
+              vxLim.reset(-MathUtil.applyDeadband(joystick.getLeftY(),  deadBandJoyStick));
+              vyLim.reset(-MathUtil.applyDeadband(joystick.getLeftX(),  deadBandJoyStick));
+              omLim.reset(-MathUtil.applyDeadband(joystick.getRightX(), deadBandJoyStick));
+            }).ignoringDisable(true)
+          );          
+      
+        // SysId routines
         joystick.back().and(joystick.y()).whileTrue(drivetrain.sysIdDynamic(Direction.kForward));
         joystick.back().and(joystick.x()).whileTrue(drivetrain.sysIdDynamic(Direction.kReverse));
         joystick.start().and(joystick.y()).whileTrue(drivetrain.sysIdQuasistatic(Direction.kForward));
         joystick.start().and(joystick.x()).whileTrue(drivetrain.sysIdQuasistatic(Direction.kReverse));
-
-        // reset the field-centric heading on left bumper press
-        joystick.leftBumper().onTrue(drivetrain.runOnce(() -> drivetrain.seedFieldCentric()));
-
+      
+        // Reset field-centric heading
+        joystick.leftBumper().onTrue(drivetrain.runOnce(drivetrain::seedFieldCentric));
+      
+        // Telemetry
         drivetrain.registerTelemetry(logger::telemeterize);
-    
-        // Combo: hold X + Y + A + B for 3 seconds
+      
+        // Zero-mode: hold X+Y+A+B for 3s (Disabled-only); real vs sim branches + rumble
         var zeroCombo = joystick.x().and(joystick.y()).and(joystick.a()).and(joystick.b()).debounce(3.0);
-
-        // Sequences (Disabled only)
+      
         var seqRealDisabled =
             Commands.print("[ZeroMode] Starting (DISABLED)…")
                 .andThen(new CalibrateAzimuthPersist().ignoringDisable(true))
                 .andThen(Commands.print("[ZeroMode] Done. Offsets written to CANcoder flash."));
-
+      
         var seqSimDisabled =
             Commands.print("[ZeroMode] Skipped in simulation: no real CAN / no FLASH writes.");
-
-        // Bind once, schedule two commands on the same trigger:
-        //  1) run zero sequence (real vs sim)
-        //  2) rumble for a quick feedback
+      
         var disabledZero = RobotModeTriggers.disabled().and(zeroCombo);
         disabledZero.onTrue(Commands.either(seqRealDisabled, seqSimDisabled, RobotBase::isReal));
         disabledZero.onTrue(Haptics.buzzOK(joystick));
-}
+      }
 
     public Command getAutonomousCommand() {
         return Commands.print("No autonomous command configured");
