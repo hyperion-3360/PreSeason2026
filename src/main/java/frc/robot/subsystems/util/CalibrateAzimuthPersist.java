@@ -1,9 +1,11 @@
 package frc.robot.subsystems.util;
 
 import com.ctre.phoenix6.StatusCode;
+import com.ctre.phoenix6.StatusSignal;
 import com.ctre.phoenix6.configs.CANcoderConfiguration;
 import com.ctre.phoenix6.hardware.CANcoder;
 
+import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.wpilibj.RobotBase;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
@@ -21,10 +23,10 @@ public class CalibrateAzimuthPersist extends Command {
 
   // Real CANcoder IDs from your project (default CAN bus).
   // If you're on a Canivore, change to: new CANcoder(id, "canivore")
-  private final CANcoder fl = new CANcoder(16); // Front Left
-  private final CANcoder fr = new CANcoder(14); // Front Right
-  private final CANcoder rl = new CANcoder(13); // Rear  Left
-  private final CANcoder rr = new CANcoder(15); // Rear  Right
+  private final CANcoder frontLeft = new CANcoder(16); // Front Left
+  private final CANcoder frontRight = new CANcoder(14); // Front Right
+  private final CANcoder rearLeft = new CANcoder(13); // Rear  Left
+  private final CANcoder rearRight = new CANcoder(15); // Rear  Right
 
   private boolean done = false;
 
@@ -49,62 +51,57 @@ public class CalibrateAzimuthPersist extends Command {
     done = false;
 
     // --- 1) Read OLD offsets (from FLASH) and current absolute angles (normalized) ---
-    CANcoderConfiguration flOld = refresh(fl);
-    CANcoderConfiguration frOld = refresh(fr);
-    CANcoderConfiguration rlOld = refresh(rl);
-    CANcoderConfiguration rrOld = refresh(rr);
+    CANcoderConfiguration frontLeftOldValues = refresh(frontLeft);
+    CANcoderConfiguration frontRightOldValues = refresh(frontRight);
+    CANcoderConfiguration rearLeftOldValues = refresh(rearLeft);
+    CANcoderConfiguration rearRightOldValues = refresh(rearRight);
 
-    double flOldOffset = normTurns(flOld.MagnetSensor.MagnetOffset);
-    double frOldOffset = normTurns(frOld.MagnetSensor.MagnetOffset);
-    double rlOldOffset = normTurns(rlOld.MagnetSensor.MagnetOffset);
-    double rrOldOffset = normTurns(rrOld.MagnetSensor.MagnetOffset);
+    double frontLeftOldOffset = normTurns(frontLeftOldValues.MagnetSensor.MagnetOffset);
+    double frontRightOldOffset = normTurns(frontRightOldValues.MagnetSensor.MagnetOffset);
+    double rearLeftOldOffset = normTurns(rearLeftOldValues.MagnetSensor.MagnetOffset);
+    double rearRightOldOffset = normTurns(rearRightOldValues.MagnetSensor.MagnetOffset);
 
-    double flAbsNow = normTurns(fl.getAbsolutePosition().getValueAsDouble());
-    double frAbsNow = normTurns(fr.getAbsolutePosition().getValueAsDouble());
-    double rlAbsNow = normTurns(rl.getAbsolutePosition().getValueAsDouble());
-    double rrAbsNow = normTurns(rr.getAbsolutePosition().getValueAsDouble());
+    double frontLeftAbsNow = normTurns(frontLeft.getAbsolutePosition().getValueAsDouble());
+    double frontRearAbsNow = normTurns(frontRight.getAbsolutePosition().getValueAsDouble());
+    double rearLeftAbsNow = normTurns(rearLeft.getAbsolutePosition().getValueAsDouble());
+    double rearRightAbsNow = normTurns(rearRight.getAbsolutePosition().getValueAsDouble());
 
-    // --- 2) Compute NEW offsets so current absolute becomes zero: new = -absNow (mod 1) ---
-    double flNewOffset = normTurns(-flAbsNow);
-    double frNewOffset = normTurns(-frAbsNow);
-    double rlNewOffset = normTurns(-rlAbsNow);
-    double rrNewOffset = normTurns(-rrAbsNow);
+    // --- 2) Compute NEW offsets so current absolute becomes zero: new = -absNow (modulo 1) ---
+    double frontLeftNewOffset = normTurns(-frontLeftAbsNow);
+    double frontRightNewOffset = normTurns(-frontRearAbsNow);
+    double rearLeftNewOffset = normTurns(-rearLeftAbsNow);
+    double rearRightNewOffset = normTurns(-rearRightAbsNow);
 
     // --- 3) Persist NEW offsets to FLASH (handle OK_ButExpectCommLoss as success) ---
-    StatusCode sFL = applyOffsetPersist(fl, flNewOffset);
-    StatusCode sFR = applyOffsetPersist(fr, frNewOffset);
-    StatusCode sRL = applyOffsetPersist(rl, rlNewOffset);
-    StatusCode sRR = applyOffsetPersist(rr, rrNewOffset);
+    StatusCode statusFrontLeft = applyOffsetPersist(frontLeft, frontLeftNewOffset);
+    StatusCode statusFrontRight = applyOffsetPersist(frontRight, frontRightNewOffset);
+    StatusCode statusRearLeft = applyOffsetPersist(rearLeft, rearLeftNewOffset);
+    StatusCode statusRearRight = applyOffsetPersist(rearRight, rearRightNewOffset);
 
     // Allow FLASH to commit before verifying
     Timer.delay(kFlashSettleSec);
 
-    // --- 4) Read back offsets from FLASH and verify within 1 LSB ---
-    double flReadBack = normTurns(refresh(fl).MagnetSensor.MagnetOffset);
-    double frReadBack = normTurns(refresh(fr).MagnetSensor.MagnetOffset);
-    double rlReadBack = normTurns(refresh(rl).MagnetSensor.MagnetOffset);
-    double rrReadBack = normTurns(refresh(rr).MagnetSensor.MagnetOffset);
+    // --- 5) Read back offsets from FLASH and verify within 1 LSB ---
+    double frontLeftReadBack = normTurns(refresh(frontLeft).MagnetSensor.MagnetOffset);
+    double frontRightReadBack = normTurns(refresh(frontRight).MagnetSensor.MagnetOffset);
+    double rearLeftReadBack = normTurns(refresh(rearLeft).MagnetSensor.MagnetOffset);
+    double rearRightReadBack = normTurns(refresh(rearRight).MagnetSensor.MagnetOffset);
 
-    logModule("FL", flAbsNow, flOldOffset, flNewOffset, flReadBack, sFL);
-    logModule("FR", frAbsNow, frOldOffset, frNewOffset, frReadBack, sFR);
-    logModule("RL", rlAbsNow, rlOldOffset, rlNewOffset, rlReadBack, sRL);
-    logModule("RR", rrAbsNow, rrOldOffset, rrNewOffset, rrReadBack, sRR);
+    logModule("frontLeft", frontLeftAbsNow, frontLeftOldOffset, frontLeftNewOffset, frontLeftReadBack, statusFrontLeft);
+    logModule("fronRight", frontRearAbsNow, frontRightOldOffset, frontRightNewOffset, frontRightReadBack, statusFrontRight);
+    logModule("rearLeft", rearLeftAbsNow, rearLeftOldOffset, rearLeftNewOffset, rearLeftReadBack, statusRearLeft);
+    logModule("rearRight", rearRightAbsNow, rearRightOldOffset, rearRightNewOffset, rearRightReadBack, statusRearRight);
 
-    verifyWritten("FL", flNewOffset, flReadBack);
-    verifyWritten("FR", frNewOffset, frReadBack);
-    verifyWritten("RL", rlNewOffset, rlReadBack);
-    verifyWritten("RR", rrNewOffset, rrReadBack);
+    verifyWritten("frontLeft", frontLeftNewOffset, frontLeftReadBack);
+    verifyWritten("fronRight", frontRightNewOffset, frontRightReadBack);
+    verifyWritten("rearLeft", rearLeftNewOffset, rearLeftReadBack);
+    verifyWritten("rearRight", rearRightNewOffset, rearRightReadBack);
 
-    // --- 5) Post-write absolute check: abs should be ~0 (mod 1) within 2 LSBs ---
-    double flAbsAfter = normTurns(fl.getAbsolutePosition().getValueAsDouble());
-    double frAbsAfter = normTurns(fr.getAbsolutePosition().getValueAsDouble());
-    double rlAbsAfter = normTurns(rl.getAbsolutePosition().getValueAsDouble());
-    double rrAbsAfter = normTurns(rr.getAbsolutePosition().getValueAsDouble());
-
-    verifyAbsZero("FL", flAbsAfter);
-    verifyAbsZero("FR", frAbsAfter);
-    verifyAbsZero("RL", rlAbsAfter);
-    verifyAbsZero("RR", rrAbsAfter);
+    // --- 5) Post-write absolute check (sensor output ≈ 0 within 2 LSB; works in Disabled) ---
+    verifyCanCoderZero("frontLeft", frontLeft);
+    verifyCanCoderZero("fronRight", frontRight);
+    verifyCanCoderZero("rearLeft", rearLeft);
+    verifyCanCoderZero("rearRight", rearRight);
 
     System.out.println("[SwerveCal] === Done. Offsets written to FLASH. Reboot optional. ===");
     done = true;
@@ -179,15 +176,18 @@ private static StatusCode applyOffsetPersist(CANcoder enc, double offsetTurns) {
     }
   }
 
-  /** Verifies that absolute angle after write is ~0 (mod 1) within 2 LSBs. */
-  private static void verifyAbsZero(String name, double absAfter) {
-    double distToZero = Math.min(absAfter, 1.0 - absAfter); // distance to nearest integer turn
+  private static void verifyCanCoderZero(String name, CANcoder enc) {
+    // Force a fresh read after FLASH write
+    StatusSignal<Angle> abs = enc.getAbsolutePosition();
+    abs.refresh();  // pull latest frame now
+    double v = normTurns(abs.getValueAsDouble());         // [0,1)
+    double distToZero = Math.min(v, 1.0 - v);             // distance to nearest integer (0 mod 1)
     if (distToZero > kAbsZeroCheckEps) {
-      System.out.printf("[SwerveCal][WARN] %s abs-after not ~0: abs=%.6f distToZero=%.6f (> %.6f)%n",
-          name, absAfter, distToZero, kAbsZeroCheckEps);
+      System.out.printf("[SwerveCal][WARN] %s CANcoder not ~0: abs=%.6f dist=%.6f (> %.6f)%n",
+          name, v, distToZero, kAbsZeroCheckEps);
     } else {
-      System.out.printf("[SwerveCal] %s abs-after ~0 OK (abs=%.6f, distToZero=%.6f ≤ %.6f).%n",
-          name, absAfter, distToZero, kAbsZeroCheckEps);
+      System.out.printf("[SwerveCal] %s CANcoder ~0 OK (abs=%.6f, dist=%.6f ≤ %.6f).%n",
+          name, v, distToZero, kAbsZeroCheckEps);
     }
   }
 }
