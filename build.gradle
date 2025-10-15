@@ -1,7 +1,26 @@
 plugins {
-    id "java"
-    id "edu.wpi.first.GradleRIO" version "2025.3.2"
+    id 'java'
+    id 'edu.wpi.first.GradleRIO' version '2025.3.2'
+    id 'com.diffplug.spotless' version '6.25.0'   
 }
+
+spotless {
+    
+    // ensures that we don't get spotless formatting errors in build robot code
+        afterEvaluate {
+            if (tasks.findByName("compileJava") != null) {
+                tasks.named("compileJava").configure {
+                    dependsOn spotlessJavaApply
+                }
+            }
+}
+
+    java {
+        googleJavaFormat('1.22.0').aosp()    
+        target 'src/**/*.java'
+    }
+}
+
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
