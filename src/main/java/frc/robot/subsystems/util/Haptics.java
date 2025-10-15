@@ -23,7 +23,7 @@ public final class Haptics {
      */
     public static Command rumble(
             CommandXboxController pad, double left, double right, double seconds) {
-        return Commands.startEnd(
+        return Commands.runEnd(
                         () -> {
                             pad.getHID().setRumble(RumbleType.kLeftRumble, left);
                             pad.getHID().setRumble(RumbleType.kRightRumble, right);
