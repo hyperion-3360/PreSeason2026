@@ -62,55 +62,46 @@ public final class JerkSnapLimiter4th {
   /** Current output value. */
   public double get() { return y; }
 
-  /**
-   * One-step update using FPGA time for dt (20 ms typical).
-   * @param target desired input (same units as output), e.g., joystick value in [-1..1]
-   * @return filtered output
-   */
-  public double calculate(double target) {
+/** One-step update using FPGA time for dt (≈20 ms). */
+public double calculate(double target) {
     double now = Timer.getFPGATimestamp();
     double dt = now - (Double.isNaN(lastTs) ? now : lastTs);
     lastTs = now;
-    // clamp weird dt spikes
-    if (dt <= 0.0 || dt > 0.1) dt = 0.02;
+    if (dt <= 0.0 || dt > 0.1) dt = 0.02;   // clamp weird spikes
     return calculate(target, dt);
   }
-
-  /**
-   * One-step update with explicit dt.
-   * @param target desired input (same units as output)
-   * @param dt seconds since last call
-   * @return filtered output
-   */
+  
+  /** One-step update with explicit dt. */
   public double calculate(double target, double dt) {
     // 1) Position error
     double e = target - y;
-
-    // 2) Desired velocity from position error, limited
+  
+    // 2) Desired velocity (limited)
     double vDes = MathUtil.clamp(kVel * e, -vmax, vmax);
-
-    // 3) Desired acceleration from velocity change, limited
+  
+    // 3) Desired acceleration (limited)
     double aDes = MathUtil.clamp((vDes - v) / dt, -amax, amax);
-
-    // 4) Desired jerk from acceleration change, limited
+  
+    // 4) Desired jerk (limited)
     double jDes = MathUtil.clamp((aDes - a) / dt, -jmax, jmax);
-
-    // 5) SNAP-limit the change in jerk (4th derivative)
+  
+    // 5) Limit SNAP (change of jerk)
     double snapCmd = MathUtil.clamp((jDes - j) / dt, -smax, smax);
-
-    // 6) Integrate snap→jerk→accel→vel→pos
+  
+    // 6) Integrate snap → jerk → accel → vel → **pos**
     j += snapCmd * dt;
-    j = MathUtil.clamp(j, -jmax, jmax);   // <— add this line
-
+    j = MathUtil.clamp(j, -jmax, jmax);
+  
     a += j * dt;
     a = MathUtil.clamp(a, -amax, amax);
-
+  
     v += a * dt;
     v = MathUtil.clamp(v, -vmax, vmax);
-
-    // Optional: keep y in joystick range if you’re using [-1..1] everywhere
-    y = MathUtil.clamp(y, -1.0, 1.0);
-
+  
+    y += v * dt;                      // ← this line was missing
+    y = MathUtil.clamp(y, -1.0, 1.0); // keep in joystick range if desired
+  
     return y;
   }
+  
 }

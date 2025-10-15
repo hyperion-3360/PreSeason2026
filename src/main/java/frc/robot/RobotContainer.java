@@ -72,6 +72,14 @@ public class RobotContainer {
                   .withRotationalRate(omUnit * MaxAngularRate);
             })
         );
+
+        // Hold Right Bumper to bypass the 4th-order filter (raw drive)
+        joystick.rightBumper().whileTrue(
+            drivetrain.applyRequest(() ->
+            drive.withVelocityX(-MathUtil.applyDeadband(joystick.getLeftY(),  deadBandJoyStick) * MaxSpeed)
+                .withVelocityY(-MathUtil.applyDeadband(joystick.getLeftX(),  deadBandJoyStick) * MaxSpeed)
+                .withRotationalRate(-MathUtil.applyDeadband(joystick.getRightX(), deadBandJoyStick) * MaxAngularRate))
+        );
       
         // Idle while Disabled (keeps neutral mode applied)
         final var idle = new SwerveRequest.Idle();
