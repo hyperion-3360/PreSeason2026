@@ -25,8 +25,8 @@ public class CalibrateAzimuthPersist extends Command {
   // If you're on a Canivore, change to: new CANcoder(id, "canivore")
   private final CANcoder frontLeft = new CANcoder(16); // Front Left
   private final CANcoder frontRight = new CANcoder(14); // Front Right
-  private final CANcoder rearLeft = new CANcoder(13); // Rear  Left
-  private final CANcoder rearRight = new CANcoder(15); // Rear  Right
+  private final CANcoder backLeft = new CANcoder(13); // Rear  Left
+  private final CANcoder backRight = new CANcoder(15); // Rear  Right
 
   private boolean done = false;
 
@@ -53,30 +53,30 @@ public class CalibrateAzimuthPersist extends Command {
     // --- 1) Read OLD offsets (from FLASH) and current absolute angles (normalized) ---
     CANcoderConfiguration frontLeftOldValues = refresh(frontLeft);
     CANcoderConfiguration frontRightOldValues = refresh(frontRight);
-    CANcoderConfiguration rearLeftOldValues = refresh(rearLeft);
-    CANcoderConfiguration rearRightOldValues = refresh(rearRight);
+    CANcoderConfiguration backLeftOldValues = refresh(backLeft);
+    CANcoderConfiguration backRightOldValues = refresh(backRight);
 
     double frontLeftOldOffset = normTurns(frontLeftOldValues.MagnetSensor.MagnetOffset);
     double frontRightOldOffset = normTurns(frontRightOldValues.MagnetSensor.MagnetOffset);
-    double rearLeftOldOffset = normTurns(rearLeftOldValues.MagnetSensor.MagnetOffset);
-    double rearRightOldOffset = normTurns(rearRightOldValues.MagnetSensor.MagnetOffset);
+    double backLeftOldOffset = normTurns(backLeftOldValues.MagnetSensor.MagnetOffset);
+    double backRightOldOffset = normTurns(backRightOldValues.MagnetSensor.MagnetOffset);
 
     double frontLeftAbsNow = normTurns(frontLeft.getAbsolutePosition().getValueAsDouble());
     double frontRearAbsNow = normTurns(frontRight.getAbsolutePosition().getValueAsDouble());
-    double rearLeftAbsNow = normTurns(rearLeft.getAbsolutePosition().getValueAsDouble());
-    double rearRightAbsNow = normTurns(rearRight.getAbsolutePosition().getValueAsDouble());
+    double backLeftAbsNow = normTurns(backLeft.getAbsolutePosition().getValueAsDouble());
+    double backRightAbsNow = normTurns(backRight.getAbsolutePosition().getValueAsDouble());
 
     // --- 2) Compute NEW offsets so current absolute becomes zero: new = -absNow (modulo 1) ---
     double frontLeftNewOffset = normTurns(-frontLeftAbsNow);
     double frontRightNewOffset = normTurns(-frontRearAbsNow);
-    double rearLeftNewOffset = normTurns(-rearLeftAbsNow);
-    double rearRightNewOffset = normTurns(-rearRightAbsNow);
+    double backLeftNewOffset = normTurns(-backLeftAbsNow);
+    double backRightNewOffset = normTurns(-backRightAbsNow);
 
     // --- 3) Persist NEW offsets to FLASH (handle OK_ButExpectCommLoss as success) ---
     StatusCode statusFrontLeft = applyOffsetPersist(frontLeft, frontLeftNewOffset);
     StatusCode statusFrontRight = applyOffsetPersist(frontRight, frontRightNewOffset);
-    StatusCode statusRearLeft = applyOffsetPersist(rearLeft, rearLeftNewOffset);
-    StatusCode statusRearRight = applyOffsetPersist(rearRight, rearRightNewOffset);
+    StatusCode statusBackLeft = applyOffsetPersist(backLeft, backLeftNewOffset);
+    StatusCode statusBackRight = applyOffsetPersist(backRight, backRightNewOffset);
 
     // Allow FLASH to commit before verifying
     Timer.delay(kFlashSettleSec);
@@ -84,24 +84,24 @@ public class CalibrateAzimuthPersist extends Command {
     // --- 5) Read back offsets from FLASH and verify within 1 LSB ---
     double frontLeftReadBack = normTurns(refresh(frontLeft).MagnetSensor.MagnetOffset);
     double frontRightReadBack = normTurns(refresh(frontRight).MagnetSensor.MagnetOffset);
-    double rearLeftReadBack = normTurns(refresh(rearLeft).MagnetSensor.MagnetOffset);
-    double rearRightReadBack = normTurns(refresh(rearRight).MagnetSensor.MagnetOffset);
+    double backLeftReadBack = normTurns(refresh(backLeft).MagnetSensor.MagnetOffset);
+    double backRightReadBack = normTurns(refresh(backRight).MagnetSensor.MagnetOffset);
 
     logModule("frontLeft", frontLeftAbsNow, frontLeftOldOffset, frontLeftNewOffset, frontLeftReadBack, statusFrontLeft);
     logModule("fronRight", frontRearAbsNow, frontRightOldOffset, frontRightNewOffset, frontRightReadBack, statusFrontRight);
-    logModule("rearLeft", rearLeftAbsNow, rearLeftOldOffset, rearLeftNewOffset, rearLeftReadBack, statusRearLeft);
-    logModule("rearRight", rearRightAbsNow, rearRightOldOffset, rearRightNewOffset, rearRightReadBack, statusRearRight);
+    logModule("backLeft", backLeftAbsNow, backLeftOldOffset, backLeftNewOffset, backLeftReadBack, statusBackLeft);
+    logModule("backRight", backRightAbsNow, backRightOldOffset, backRightNewOffset, backRightReadBack, statusBackRight);
 
     verifyWritten("frontLeft", frontLeftNewOffset, frontLeftReadBack);
     verifyWritten("fronRight", frontRightNewOffset, frontRightReadBack);
-    verifyWritten("rearLeft", rearLeftNewOffset, rearLeftReadBack);
-    verifyWritten("rearRight", rearRightNewOffset, rearRightReadBack);
+    verifyWritten("backLeft", backLeftNewOffset, backLeftReadBack);
+    verifyWritten("backRight", backRightNewOffset, backRightReadBack);
 
     // --- 5) Post-write absolute check (sensor output ≈ 0 within 2 LSB; works in Disabled) ---
     verifyCanCoderZero("frontLeft", frontLeft);
     verifyCanCoderZero("fronRight", frontRight);
-    verifyCanCoderZero("rearLeft", rearLeft);
-    verifyCanCoderZero("rearRight", rearRight);
+    verifyCanCoderZero("backLeft", backLeft);
+    verifyCanCoderZero("backRight", backRight);
 
     System.out.println("[SwerveCal] === Done. Offsets written to FLASH. Reboot optional. ===");
     done = true;
