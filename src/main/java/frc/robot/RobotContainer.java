@@ -31,11 +31,11 @@ public class RobotContainer {
 
     // 4th-order limiters for joystick → smooth vx, vy, omega
     private final JerkSnapLimiter4th vxLim =
-    new JerkSnapLimiter4th(4.0, 16.0, 160.0, 1600.0, 0.25, 0.0);
+    new JerkSnapLimiter4th(16.0, 64.0, 800.0, 8000.0, 0.12, 0.0);
     private final JerkSnapLimiter4th vyLim =
-    new JerkSnapLimiter4th(4.0, 16.0, 160.0, 1600.0, 0.25, 0.0);
+    new JerkSnapLimiter4th(16.0, 64.0, 800.0, 8000.0, 0.12, 0.0);
     private final JerkSnapLimiter4th omLim =
-    new JerkSnapLimiter4th(4.0, 16.0, 160.0, 1600.0, 0.30, 0.0); // yaw a touch smoother
+    new JerkSnapLimiter4th(12.0, 48.0, 600.0, 6000.0, 0.16, 0.0); // yaw a touch smoother
 
     /* Setting up bindings for necessary control of the swerve drive platform */
     private final SwerveRequest.FieldCentric drive = new SwerveRequest.FieldCentric()
@@ -58,20 +58,36 @@ public class RobotContainer {
         // Default drive: joystick → 4th-order filtered → robot units
         drivetrain.setDefaultCommand(
             drivetrain.applyRequest(() -> {
-              double rawVX = -MathUtil.applyDeadband(joystick.getLeftY(),  deadBandJoyStick); 
-              double rawVY = -MathUtil.applyDeadband(joystick.getLeftX(),  deadBandJoyStick); 
-              double rawOM = -MathUtil.applyDeadband(joystick.getRightX(), deadBandJoyStick);
-      
-              double vxUnit = vxLim.calculate(rawVX); // expects vxLim/vyLim/omLim fields
+              // 0) Pre-deadband (already in your code), then hard quiet zone to kill tiny noise
+              final double db = deadBandJoyStick;
+              final double stickQuiet = 0.03;   // ≈3% stick; adjust 0.02–0.05
+              final double outQuiet   = 0.015;  // post-filter floor
+          
+              double rawVX = quiet(-MathUtil.applyDeadband(joystick.getLeftY(),  db), stickQuiet);
+              double rawVY = quiet(-MathUtil.applyDeadband(joystick.getLeftX(),  db), stickQuiet);
+              double rawOM = quiet(-MathUtil.applyDeadband(joystick.getRightX(), db), stickQuiet);
+          
+              // 1) 4th-order smoothing
+              double vxUnit = vxLim.calculate(rawVX);
               double vyUnit = vyLim.calculate(rawVY);
               double omUnit = omLim.calculate(rawOM);
-      
+          
+              // 2) Zero-hold: if target is zero and filter output is tiny, snap state to zero
+              if (rawVX == 0.0 && Math.abs(vxUnit) < outQuiet) { vxLim.reset(0.0); vxUnit = 0.0; }
+              if (rawVY == 0.0 && Math.abs(vyUnit) < outQuiet) { vyLim.reset(0.0); vyUnit = 0.0; }
+              if (rawOM == 0.0 && Math.abs(omUnit) < outQuiet) { omLim.reset(0.0); omUnit = 0.0; }
+          
+              // 3) Optional final tiny floor (prevents dithering in sim)
+              vxUnit = MathUtil.applyDeadband(vxUnit, outQuiet);
+              vyUnit = MathUtil.applyDeadband(vyUnit, outQuiet);
+              omUnit = MathUtil.applyDeadband(omUnit, outQuiet);
+          
               return drive
                   .withVelocityX(vxUnit * MaxSpeed)
                   .withVelocityY(vyUnit * MaxSpeed)
                   .withRotationalRate(omUnit * MaxAngularRate);
             })
-        );
+          );
 
         // Hold Right Bumper to bypass the 4th-order filter (raw drive)
         joystick.rightBumper().whileTrue(
@@ -123,7 +139,11 @@ public class RobotContainer {
         disabledZero.onTrue(Commands.either(seqRealDisabled, seqSimDisabled, RobotBase::isReal));
         disabledZero.onTrue(Haptics.buzzOK(joystick));
       }
-
+    
+    // Helper used by drive mapping
+    private static double quiet(double x, double eps) {
+        return Math.abs(x) < eps ? 0.0 : x;
+    }
     public Command getAutonomousCommand() {
         return Commands.print("No autonomous command configured");
     }
