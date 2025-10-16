@@ -2,6 +2,8 @@
 // Open Source Software; you can modify and/or share it under the terms of
 // the WPILib BSD license file in the root directory of this project.
 
+// https://docs.advantagekit.org/getting-started/template-projects/talonfx-swerve-template
+
 package frc.robot.vision;
 
 import edu.wpi.first.math.geometry.Pose2d;
