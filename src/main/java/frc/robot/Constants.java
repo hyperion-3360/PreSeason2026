@@ -8,13 +8,13 @@ import edu.wpi.first.apriltag.AprilTagFieldLayout;
 import edu.wpi.first.apriltag.AprilTagFields;
 
 /** Add your docs here. */
-public final class Constants { 
+public final class Constants {
 
-  public static class CameraInfo {
-    public static final double kCamHeight = 0.0;
-    public static final double kCamPitch = 0.0;
-  }
+    public static class CameraInfo {
+        public static final double kCamHeight = 0.0;
+        public static final double kCamPitch = 0.0;
+    }
 
-  public static final AprilTagFieldLayout tagLayout =
-      AprilTagFieldLayout.loadField(AprilTagFields.k2025ReefscapeWelded);
+    public static final AprilTagFieldLayout tagLayout =
+            AprilTagFieldLayout.loadField(AprilTagFields.k2025ReefscapeWelded);
 }
