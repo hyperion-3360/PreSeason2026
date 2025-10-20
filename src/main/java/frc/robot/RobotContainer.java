@@ -17,6 +17,8 @@ import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.swerve.CommandSwerveDrivetrain;
+import frc.robot.vision.Vision;
+import frc.robot.vision.VisionCamera;
 
 public class RobotContainer {
     private double MaxSpeed = TunerConstants.kSpeedAt12Volts.in(MetersPerSecond); // kSpeedAt12Volts desired top speed
@@ -34,6 +36,7 @@ public class RobotContainer {
     private final CommandXboxController joystick = new CommandXboxController(0);
 
     public final CommandSwerveDrivetrain drivetrain = TunerConstants.createDrivetrain();
+    public final Vision vision = new Vision();
 
     public RobotContainer() {
         configureBindings();
@@ -74,6 +77,32 @@ public class RobotContainer {
         joystick.leftBumper().onTrue(drivetrain.runOnce(() -> drivetrain.seedFieldCentric()));
 
         drivetrain.registerTelemetry(logger::telemeterize);
+    }
+
+    /**
+     * This method should be called periodically to update vision measurements.
+     * Call this from Robot.robotPeriodic() or add it to a periodic command.
+     */
+    public void updateVisionMeasurements() {
+        // Update vision system - this processes all camera data and updates tracking
+        vision.doPeriodic();
+        
+        // Loop through all cameras and add their pose estimates to the drivetrain
+        for (VisionCamera camera : vision.cameras()) {
+            if (!camera.isActive()) {
+                continue; // Skip disconnected cameras
+            }
+            
+            camera.getVisionEstimatePose().ifPresent(estimatedPose -> {
+                // Add the vision measurement to the drivetrain's pose estimator
+                // This uses the camera's calculated standard deviations for accuracy
+                drivetrain.addVisionMeasurement(
+                    estimatedPose.estimatedPose.toPose2d(),
+                    camera.getTimestampSeconds(),
+                    camera.getEstimationStdDevs()
+                );
+            });
+        }
     }
 
     public Command getAutonomousCommand() {
