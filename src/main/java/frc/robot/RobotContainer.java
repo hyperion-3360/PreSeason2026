@@ -20,6 +20,7 @@ import frc.robot.subsystems.swerve.CommandSwerveDrivetrain;
 import frc.robot.subsystems.util.CalibrateAzimuthPersist;
 import frc.robot.subsystems.util.Diagnostics;
 import frc.robot.subsystems.util.Haptics;
+import frc.robot.subsystems.util.SCurveLimiter;
 
 public class RobotContainer {
     private double MaxSpeed =
@@ -29,6 +30,15 @@ public class RobotContainer {
                     .in(RadiansPerSecond); // 3/4 of a rotation per second max angular velocity
     private double deadBandJoyStick = 0.06;
 
+    // VMax Units: (joystick units) / s, AMax Units: (joystick units) / s², JMax Units: (joystick
+    // units) / s³
+    private final SCurveLimiter vxLim = new SCurveLimiter(1.0, 6.0, 120.0);
+    private final SCurveLimiter vyLim = new SCurveLimiter(1.0, 6.0, 120.0);
+    private final SCurveLimiter omLim = new SCurveLimiter(1.0, 8.0, 200.0);
+
+    // Toggle flag
+    private boolean sCurveEnabled = true;
+
     /* Setting up bindings for necessary control of the swerve drive platform */
     private final SwerveRequest.FieldCentric drive =
             new SwerveRequest.FieldCentric()
@@ -37,6 +47,7 @@ public class RobotContainer {
                     .withDriveRequestType(
                             DriveRequestType
                                     .OpenLoopVoltage); // Use open-loop control for drive motors
+
     private final SwerveRequest.SwerveDriveBrake brake = new SwerveRequest.SwerveDriveBrake();
     private final SwerveRequest.PointWheelsAt point = new SwerveRequest.PointWheelsAt();
 
@@ -63,36 +74,88 @@ public class RobotContainer {
         // Note that X is defined as forward according to WPILib convention,
         // and Y is defined as to the left according to WPILib convention.
         drivetrain.setDefaultCommand(
-                // Drivetrain will execute this command periodically
                 drivetrain.applyRequest(
-                        () ->
-                                drive.withVelocityX(
-                                                -MathUtil.applyDeadband(
-                                                                joystick.getLeftY(),
-                                                                deadBandJoyStick)
-                                                        * MaxSpeed)
-                                        .withVelocityY(
-                                                -MathUtil.applyDeadband(
-                                                                joystick.getLeftX(),
-                                                                deadBandJoyStick)
-                                                        * MaxSpeed)
-                                        .withRotationalRate(
-                                                -MathUtil.applyDeadband(
-                                                                joystick.getRightX(),
-                                                                deadBandJoyStick)
-                                                        * MaxAngularRate)));
+                        () -> {
+                            double xRaw =
+                                    -MathUtil.applyDeadband(joystick.getLeftY(), deadBandJoyStick);
+                            double yRaw =
+                                    -MathUtil.applyDeadband(joystick.getLeftX(), deadBandJoyStick);
+                            double rRaw =
+                                    -MathUtil.applyDeadband(joystick.getRightX(), deadBandJoyStick);
+
+                            double xCmd, yCmd, rCmd;
+
+                            if (sCurveEnabled) {
+                                // (optional) shaping for finer center control
+                                double xs = Math.copySign(xRaw * xRaw, xRaw);
+                                double ys = Math.copySign(yRaw * yRaw, yRaw);
+                                double rs = Math.copySign(rRaw * rRaw, rRaw);
+
+                                xCmd = vxLim.calculate(xs) * MaxSpeed;
+                                yCmd = vyLim.calculate(ys) * MaxSpeed;
+                                rCmd = omLim.calculate(rs) * MaxAngularRate;
+                            } else {
+                                // Bypass filters
+                                xCmd = xRaw * MaxSpeed;
+                                yCmd = yRaw * MaxSpeed;
+                                rCmd = rRaw * MaxAngularRate;
+                            }
+
+                            return drive.withVelocityX(xCmd)
+                                    .withVelocityY(yCmd)
+                                    .withRotationalRate(rCmd);
+                        }));
 
         // Idle while the robot is disabled. This ensures the configured
         // neutral mode is applied to the drive motors while disabled.
-        final var idle = new SwerveRequest.Idle();
         RobotModeTriggers.disabled()
-                .whileTrue(drivetrain.applyRequest(() -> idle).ignoringDisable(true));
+                .onTrue(
+                        Commands.runOnce(
+                                        () -> {
+                                            vxLim.reset(0);
+                                            vyLim.reset(0);
+                                            omLim.reset(0);
+                                        })
+                                .ignoringDisable(true));
 
         // Might be used later, keeping it here for example.
         /*joystick.a().whileTrue(drivetrain.applyRequest(() -> brake));
         joystick.b().whileTrue(drivetrain.applyRequest(() ->
             point.withModuleDirection(new Rotation2d(-joystick.getLeftY(), -joystick.getLeftX()))
         ));*/
+        joystick.a()
+                .onTrue(
+                        Commands.runOnce(
+                                        () -> {
+                                            boolean newState = !sCurveEnabled;
+
+                                            // If enabling, seed filters to current input so output
+                                            // stays continuous
+                                            if (newState) {
+                                                double xRaw =
+                                                        -MathUtil.applyDeadband(
+                                                                joystick.getLeftY(),
+                                                                deadBandJoyStick);
+                                                double yRaw =
+                                                        -MathUtil.applyDeadband(
+                                                                joystick.getLeftX(),
+                                                                deadBandJoyStick);
+                                                double rRaw =
+                                                        -MathUtil.applyDeadband(
+                                                                joystick.getRightX(),
+                                                                deadBandJoyStick);
+                                                vxLim.reset(xRaw);
+                                                vyLim.reset(yRaw);
+                                                omLim.reset(rRaw);
+                                            }
+
+                                            sCurveEnabled = newState;
+                                            System.out.println(
+                                                    "[Drive] S-curve limiter: "
+                                                            + (sCurveEnabled ? "ON" : "OFF"));
+                                        })
+                                .ignoringDisable(true) // let you toggle while Disabled
+                        );
 
         // Run SysId routines when holding back/start and X/Y.
         // Note that each routine should be run exactly once in a single log.
