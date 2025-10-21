@@ -59,7 +59,6 @@
 
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
-replay_pid*
 
 ### Linux ###
 *~
@@ -106,6 +105,7 @@ Temporary Items
 
 ### VisualStudioCode ###
 .vscode/*
+!.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
@@ -139,10 +139,6 @@ $RECYCLE.BIN/
 .gradle
 /build/
 
-# output cleanup
-*.lock
-.gradle/buildOutputCleanup/buildOutputCleanup.lock
-
 # Ignore Gradle GUI config
 gradle-app.setting
 
@@ -174,7 +170,7 @@ out/
 
 # Simulation GUI and other tools window save file
 networktables.json
-simgui*.json
+simgui.json
 *-window.json
 
 # Simulation data log directory
@@ -187,6 +183,5 @@ ctre_sim/
 /.cache
 compile_commands.json
 
-# Version file
-src/main/java/frc/robot/BuildConstants.java
-.gradle/8.11/checksums/checksums.lock
+# Eclipse generated file for annotation processors
+.factorypath
