@@ -1,7 +1,7 @@
 # 🤖 FRC PreSeason2026 – Équipe Hyperion 3360
 
 Projet de **pré-saison 2026** de l’équipe **FRC Hyperion 3360**.  
-Ce dépôt sert à préparer la saison officielle de la compétition **FIRST Robotics Competition (FRC)** à travers des expérimentations, des tests et de la formation technique.
+Ce repo sert à préparer la saison officielle de la compétition **FIRST Robotics Competition (FRC)** à travers des expérimentations, des tests et de la formation technique.
 
 ---
 
@@ -18,14 +18,9 @@ Ce dépôt sert à préparer la saison officielle de la compétition **FIRST Rob
 ## 🧰 Technologies et outils utilisés
 
 - **WPILib** – Bibliothèque FRC pour la programmation robotique  
-- **Java** – Langage principal du projet *(modifiable selon ton choix)*  
+- **Java** – Langage principal du projet 
 - **GradleRIO** – Outil de build et de déploiement du code sur le robot  
 - **Git & GitHub** – Gestion de version, collaboration et revue de code  
 
----
-
-## 🧑‍💻 Structure du projet
-
-...
 
 
