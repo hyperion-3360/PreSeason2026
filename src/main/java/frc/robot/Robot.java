@@ -20,6 +20,9 @@ public class Robot extends TimedRobot {
     @Override
     public void robotPeriodic() {
         CommandScheduler.getInstance().run();
+
+        // Update vision measurements for pose estimation
+        m_robotContainer.updateVisionMeasurements();
     }
 
     @Override

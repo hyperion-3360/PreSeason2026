@@ -21,6 +21,8 @@ import frc.robot.subsystems.util.CalibrateAzimuthPersist;
 import frc.robot.subsystems.util.Diagnostics;
 import frc.robot.subsystems.util.Haptics;
 import frc.robot.subsystems.util.SCurveLimiter;
+import frc.robot.vision.Vision;
+import frc.robot.vision.VisionCamera;
 
 public class RobotContainer {
     private double MaxSpeed =
@@ -56,6 +58,7 @@ public class RobotContainer {
     private final CommandXboxController joystick = new CommandXboxController(0);
 
     public final CommandSwerveDrivetrain drivetrain = TunerConstants.createDrivetrain();
+    public final Vision vision = new Vision();
 
     public RobotContainer() {
         configureBindings();
@@ -193,6 +196,34 @@ public class RobotContainer {
         // run zero sequence (real vs sim)
         var disabledZero = RobotModeTriggers.disabled().and(zeroHold);
         disabledZero.onTrue(Commands.either(seqRealDisabled, seqSimDisabled, RobotBase::isReal));
+    }
+
+    /**
+     * This method should be called periodically to update vision measurements. Call this from
+     * Robot.robotPeriodic() or add it to a periodic command.
+     */
+    public void updateVisionMeasurements() {
+        // Update vision system - this processes all camera data and updates tracking
+        vision.doPeriodic();
+
+        // Loop through all cameras and add their pose estimates to the drivetrain
+        for (VisionCamera camera : vision.cameras()) {
+            if (!camera.isActive()) {
+                continue; // Skip disconnected cameras
+            }
+
+            camera.getVisionEstimatePose()
+                    .ifPresent(
+                            estimatedPose -> {
+                                // Add the vision measurement to the drivetrain's pose estimator
+                                // This uses the camera's calculated standard deviations for
+                                // accuracy
+                                drivetrain.addVisionMeasurement(
+                                        estimatedPose.estimatedPose.toPose2d(),
+                                        camera.getTimestampSeconds(),
+                                        camera.getEstimationStdDevs());
+                            });
+        }
     }
 
     public Command getAutonomousCommand() {
