@@ -22,10 +22,5 @@ Ce repo sert à préparer la saison officielle de la compétition **FIRST Roboti
 - **GradleRIO** – Outil de build et de déploiement du code sur le robot  
 - **Git & GitHub** – Gestion de version, collaboration et revue de code  
 
----
-
-## 🧑‍💻 Structure du projet
-
-...
 
 
