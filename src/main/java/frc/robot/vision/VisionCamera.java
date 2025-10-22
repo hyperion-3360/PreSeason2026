@@ -1,5 +1,6 @@
 package frc.robot.vision;
 
+import com.ctre.phoenix6.Utils;
 import edu.wpi.first.math.Matrix;
 import edu.wpi.first.math.VecBuilder;
 import edu.wpi.first.math.geometry.Transform3d;
@@ -13,12 +14,16 @@ import org.photonvision.EstimatedRobotPose;
 import org.photonvision.PhotonCamera;
 import org.photonvision.PhotonPoseEstimator;
 import org.photonvision.PhotonPoseEstimator.PoseStrategy;
+import org.photonvision.simulation.PhotonCameraSim;
+import org.photonvision.simulation.SimCameraProperties;
+import org.photonvision.simulation.VisionSystemSim;
 import org.photonvision.targeting.PhotonPipelineResult;
 import org.photonvision.targeting.PhotonTrackedTarget;
 
 public class VisionCamera extends SubsystemBase {
 
     private final PhotonCamera m_cameraInstance;
+    private final PhotonCameraSim m_cameraSimInstance;
 
     private final PhotonPoseEstimator m_cameraPoseEstimator;
 
@@ -34,13 +39,23 @@ public class VisionCamera extends SubsystemBase {
 
     public double distanceFactor = 0;
     public double ambiguityFactor = 0;
+    private VisionSystemSim m_visionSim;
 
     public VisionCamera(
+            VisionSystemSim visionSim,
             String cameraName,
             Transform3d robotToCam,
             double distanceFactor,
             double ambiguityFactor) {
+        m_visionSim = visionSim;
         m_cameraInstance = new PhotonCamera(cameraName);
+        // In simulation, set a default latency for the camera
+        SimCameraProperties cameraProp = new SimCameraProperties();
+        m_cameraSimInstance = new PhotonCameraSim(m_cameraInstance, cameraProp);
+        if (Utils.isSimulation()) {
+            m_visionSim.addCamera(m_cameraSimInstance, robotToCam);
+        }
+
         m_cameraPoseEstimator =
                 new PhotonPoseEstimator(
                         Constants.tagLayout, PoseStrategy.LOWEST_AMBIGUITY, robotToCam);

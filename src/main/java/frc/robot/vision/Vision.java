@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.function.Supplier;
+import org.photonvision.simulation.VisionSystemSim;
 import org.photonvision.targeting.PhotonTrackedTarget;
 
 public class Vision extends SubsystemBase {
@@ -41,6 +42,7 @@ public class Vision extends SubsystemBase {
 
     private VisionCamera m_cameras[] = new VisionCamera[3];
     private boolean m_tagFound = true;
+    private VisionSystemSim m_visionSim = new VisionSystemSim("main");
 
     Transform3d m_LL2_Right =
             new Transform3d(
@@ -94,18 +96,24 @@ public class Vision extends SubsystemBase {
 
     /** Creates a new Odometry. */
     public Vision() {
-
+        m_visionSim.addAprilTags(Constants.tagLayout);
         m_cameras[0] =
                 new VisionCamera(
-                        "lml3", m_LL3, kPrimaryTagDistanceFactor, kPrimaryTagAmbiguityFactor);
+                        m_visionSim,
+                        "lml3",
+                        m_LL3,
+                        kPrimaryTagDistanceFactor,
+                        kPrimaryTagAmbiguityFactor);
         m_cameras[1] =
                 new VisionCamera(
+                        m_visionSim,
                         "lml2R",
                         m_LL2_Right,
                         kSecondaryTagDistanceFactor,
                         kSecondaryTagAmbiguityFactor);
         m_cameras[2] =
                 new VisionCamera(
+                        m_visionSim,
                         "lml2L",
                         m_LL2_Left,
                         kSecondaryTagDistanceFactor,
@@ -348,5 +356,9 @@ public class Vision extends SubsystemBase {
 
     public VisionCamera[] cameras() {
         return m_cameras;
+    }
+
+    public VisionSystemSim getVisionSim() {
+        return m_visionSim;
     }
 }

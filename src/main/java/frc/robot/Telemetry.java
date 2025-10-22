@@ -1,6 +1,7 @@
 package frc.robot;
 
 import com.ctre.phoenix6.SignalLogger;
+import com.ctre.phoenix6.Utils;
 import com.ctre.phoenix6.swerve.SwerveDrivetrain.SwerveDriveState;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
@@ -21,17 +22,20 @@ import edu.wpi.first.wpilibj.smartdashboard.MechanismLigament2d;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj.util.Color;
 import edu.wpi.first.wpilibj.util.Color8Bit;
+import org.photonvision.simulation.VisionSystemSim;
 
 public class Telemetry {
     private final double MaxSpeed;
+    private VisionSystemSim m_visionSim;
 
     /**
      * Construct a telemetry object, with the specified max speed of the robot
      *
      * @param maxSpeed Maximum speed in meters per second
      */
-    public Telemetry(double maxSpeed) {
+    public Telemetry(double maxSpeed, VisionSystemSim visionSim) {
         MaxSpeed = maxSpeed;
+        m_visionSim = visionSim;
         SignalLogger.start();
 
         /* Set up the module state Mechanism2d telemetry */
@@ -158,6 +162,9 @@ public class Telemetry {
         Pose2d pose = new Pose2d(translation, rot);
 
         field.setRobotPose(pose);
+        if (Utils.isSimulation()) {
+            m_visionSim.update(pose);
+        }
 
         /* Telemeterize each module state to a Mechanism2d */
         for (int i = 0; i < 4; ++i) {
