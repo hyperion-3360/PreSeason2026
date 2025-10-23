@@ -295,6 +295,29 @@ public class VisionSubsystem extends SubsystemBase {
     }
 
     /**
+     * Gets the angle to the currently tracked target.
+     *
+     * @return Rotation2d representing the angle to face the target
+     */
+    public Rotation2d getAngleToTarget() {
+        Optional<Pose2d> targetPose = getTargetPose();
+        if (targetPose.isEmpty()) {
+            // No target - return current heading (no change)
+            return new Rotation2d();
+        }
+
+        // Get current robot pose
+        Pose2d robotPose = m_drivetrain.getState().Pose;
+        Pose2d target = targetPose.get();
+
+        // Calculate angle from robot to target
+        double deltaX = target.getX() - robotPose.getX();
+        double deltaY = target.getY() - robotPose.getY();
+
+        return new Rotation2d(deltaX, deltaY);
+    }
+
+    /**
      * Gets the number of currently active (connected) cameras.
      *
      * @return Number of active cameras

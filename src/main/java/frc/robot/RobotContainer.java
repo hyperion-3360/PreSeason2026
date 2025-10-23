@@ -9,6 +9,8 @@ import static edu.wpi.first.units.Units.*;
 import com.ctre.phoenix6.swerve.SwerveModule.DriveRequestType;
 import com.ctre.phoenix6.swerve.SwerveRequest;
 import edu.wpi.first.math.MathUtil;
+import edu.wpi.first.math.controller.PIDController;
+import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.wpilibj.RobotBase;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
@@ -33,8 +35,12 @@ public class RobotContainer {
             RotationsPerSecond.of(Constants.DriveConstants.MAX_ANGULAR_RATE_TELEOP)
                     .in(RadiansPerSecond); // Max angular velocity from Constants
 
-    // Battery brownout protection
-    private final BrownoutProtection brownoutProtection = new BrownoutProtection();
+    // Controller - declared early for brownout protection
+    private final CommandXboxController joystick =
+            new CommandXboxController(Constants.OIConstants.DRIVER_CONTROLLER_PORT);
+
+    // Battery brownout protection with haptic feedback
+    private final BrownoutProtection brownoutProtection = new BrownoutProtection(joystick);
 
     // Exponential scaling for joystick inputs - applied BEFORE S-curve
     private final ExponentialScale expScale =
@@ -57,8 +63,22 @@ public class RobotContainer {
                     Constants.DriveConstants.SCURVE_OMEGA_MAX_ACCEL,
                     Constants.DriveConstants.SCURVE_OMEGA_MAX_JERK);
 
-    // Toggle flag
+    // Toggle flags
     private boolean sCurveEnabled = Constants.DriveConstants.SCURVE_ENABLED_DEFAULT;
+    private boolean autoAimEnabled = false;
+
+    // Auto-aim PID controller
+    private final PIDController autoAimPID =
+            new PIDController(
+                    Constants.AutoAlignConstants.AUTO_AIM_kP,
+                    Constants.AutoAlignConstants.AUTO_AIM_kI,
+                    Constants.AutoAlignConstants.AUTO_AIM_kD);
+
+    {
+        // Configure auto-aim PID
+        autoAimPID.enableContinuousInput(-Math.PI, Math.PI);
+        autoAimPID.setTolerance(Constants.AutoAlignConstants.AUTO_AIM_TOLERANCE);
+    }
 
     /* Setting up bindings for necessary control of the swerve drive platform */
     private final SwerveRequest.FieldCentric drive =
@@ -73,9 +93,6 @@ public class RobotContainer {
     private final SwerveRequest.PointWheelsAt point = new SwerveRequest.PointWheelsAt();
 
     private final Telemetry logger = new Telemetry(MaxSpeed);
-
-    private final CommandXboxController joystick =
-            new CommandXboxController(Constants.OIConstants.DRIVER_CONTROLLER_PORT);
 
     // Subsystems
     public final CommandSwerveDrivetrain drivetrain = TunerConstants.createDrivetrain();
@@ -137,6 +154,25 @@ public class RobotContainer {
                                 rCmd = rScaled * MaxAngularRate;
                             }
 
+                            // Auto-aim mode: robot controls rotation, driver controls translation
+                            if (autoAimEnabled && vision.hasTarget()) {
+                                // Get angle to closest AprilTag
+                                Rotation2d currentHeading =
+                                        drivetrain.getState().Pose.getRotation();
+                                Rotation2d targetAngle = vision.getAngleToTarget();
+
+                                // Use PID to calculate rotation command
+                                rCmd =
+                                        MathUtil.clamp(
+                                                autoAimPID.calculate(
+                                                        currentHeading.getRadians(),
+                                                        targetAngle.getRadians()),
+                                                -Constants.AutoAlignConstants
+                                                        .AUTO_AIM_MAX_ANGULAR_VELOCITY,
+                                                Constants.AutoAlignConstants
+                                                        .AUTO_AIM_MAX_ANGULAR_VELOCITY);
+                            }
+
                             // Apply brownout protection speed limiting
                             double speedScale = brownoutProtection.getSpeedScaleFactor();
                             xCmd *= speedScale;
@@ -167,6 +203,37 @@ public class RobotContainer {
                 .onFalse(
                         Commands.runOnce(
                                 () -> System.out.println("[Align] Button released"), drivetrain));
+
+        // ========== AUTO-AIM TOGGLE ==========
+        // Hold both triggers (L2 + R2) for 3 seconds to toggle auto-aim mode
+        var bothTriggersPressed = joystick.leftTrigger().and(joystick.rightTrigger());
+
+        // Debug: print when triggers are pressed and give haptic feedback
+        bothTriggersPressed.onTrue(
+                Commands.runOnce(
+                        () -> {
+                            System.out.println(
+                                    "[Auto-Aim] Both triggers pressed - holding for 3 seconds...");
+                            Haptics.buzzShort(joystick).schedule();
+                        }));
+
+        // Toggle after 3 second hold
+        bothTriggersPressed
+                .debounce(3.0)
+                .onTrue(
+                        Commands.runOnce(
+                                () -> {
+                                    autoAimEnabled = !autoAimEnabled;
+                                    if (autoAimEnabled) {
+                                        System.out.println(
+                                                "[Auto-Aim] ENABLED - Robot will auto-rotate to closest AprilTag");
+                                        Haptics.buzzOK(joystick).schedule();
+                                    } else {
+                                        System.out.println(
+                                                "[Auto-Aim] DISABLED - Manual rotation control");
+                                        Haptics.buzzShort(joystick).schedule();
+                                    }
+                                }));
 
         // ========== S-CURVE TOGGLE ==========
         joystick.a()
@@ -219,8 +286,29 @@ public class RobotContainer {
                 .whileTrue(drivetrain.sysIdQuasistatic(Direction.kReverse));
 
         // ========== FIELD-CENTRIC RESET ==========
-        // reset the field-centric heading on left bumper press
-        joystick.leftBumper().onTrue(drivetrain.runOnce(() -> drivetrain.seedFieldCentric()));
+        // Hold L1 (left bumper) for 3 seconds to reset field-centric heading
+        var leftBumperPressed = joystick.leftBumper();
+
+        // Immediate feedback when button is pressed
+        leftBumperPressed.onTrue(
+                Commands.runOnce(
+                        () -> {
+                            System.out.println(
+                                    "[Field-Centric] L1 pressed - holding for 3 seconds to reset orientation...");
+                            Haptics.buzzShort(joystick).schedule();
+                        }));
+
+        // Reset field-centric after 3 second hold
+        leftBumperPressed
+                .debounce(3.0)
+                .onTrue(
+                        Commands.runOnce(
+                                () -> {
+                                    drivetrain.seedFieldCentric();
+                                    System.out.println(
+                                            "[Field-Centric] RESET - Robot forward is now field forward");
+                                    Haptics.buzzOK(joystick).schedule();
+                                }));
 
         drivetrain.registerTelemetry(logger::telemeterize);
 
