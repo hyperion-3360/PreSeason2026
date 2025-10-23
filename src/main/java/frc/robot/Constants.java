@@ -44,9 +44,12 @@ public final class Constants {
         // NOTE: These are tuned for competition - battery will drop during match!
         // Typical voltages: Start=12.5V, Mid-match=11.5V, End=10.5-11.5V
         public static final double BATTERY_NOMINAL_VOLTAGE = 12.0; // Fully charged battery voltage
-        public static final double BATTERY_WARNING_VOLTAGE = 10.5; // Start warning (yellow) - end of match
-        public static final double BATTERY_CRITICAL_VOLTAGE = 9.5; // Critical level (red) - battery failing
-        public static final double BATTERY_BROWNOUT_VOLTAGE = 8.5; // Severe brownout (emergency only)
+        public static final double BATTERY_WARNING_VOLTAGE =
+                10.5; // Start warning (yellow) - end of match
+        public static final double BATTERY_CRITICAL_VOLTAGE =
+                9.5; // Critical level (red) - battery failing
+        public static final double BATTERY_BROWNOUT_VOLTAGE =
+                8.5; // Severe brownout (emergency only)
 
         // Speed scaling factors based on voltage
         public static final double SPEED_SCALE_WARNING = 0.90; // 90% speed at warning level
@@ -121,5 +124,12 @@ public final class Constants {
         public static final double kD_ROTATION = 0.3;
         public static final double MAX_VELOCITY_ROTATION = 2.5 * Math.PI; // rad/s
         public static final double MAX_ACCELERATION_ROTATION = 5.0 * Math.PI; // rad/s²
+
+        // Auto-aim while driving (driver controls translation, robot controls rotation)
+        public static final double AUTO_AIM_kP = 4.0; // Rotation P gain for aim assist
+        public static final double AUTO_AIM_kI = 0.0; // Rotation I gain
+        public static final double AUTO_AIM_kD = 0.15; // Rotation D gain for damping
+        public static final double AUTO_AIM_MAX_ANGULAR_VELOCITY = Math.PI; // rad/s
+        public static final double AUTO_AIM_TOLERANCE = Units.degreesToRadians(5.0); // 5 degrees
     }
 }
