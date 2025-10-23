@@ -16,28 +16,40 @@ import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
 import frc.robot.generated.TunerConstants;
+import frc.robot.subsystems.commands.AlignToTagCommand;
 import frc.robot.subsystems.swerve.CommandSwerveDrivetrain;
 import frc.robot.subsystems.util.CalibrateAzimuthPersist;
 import frc.robot.subsystems.util.Diagnostics;
 import frc.robot.subsystems.util.Haptics;
 import frc.robot.subsystems.util.SCurveLimiter;
+import frc.robot.subsystems.vision.VisionSubsystem;
 
 public class RobotContainer {
     private double MaxSpeed =
             TunerConstants.kSpeedAt12Volts.in(MetersPerSecond); // kSpeedAt12Volts desired top speed
     private double MaxAngularRate =
-            RotationsPerSecond.of(0.75)
-                    .in(RadiansPerSecond); // 3/4 of a rotation per second max angular velocity
-    private double deadBandJoyStick = 0.06;
+            RotationsPerSecond.of(Constants.DriveConstants.MAX_ANGULAR_RATE_TELEOP)
+                    .in(RadiansPerSecond); // Max angular velocity from Constants
 
-    // VMax Units: (joystick units) / s, AMax Units: (joystick units) / s², JMax Units: (joystick
-    // units) / s³
-    private final SCurveLimiter vxLim = new SCurveLimiter(1.0, 6.0, 120.0);
-    private final SCurveLimiter vyLim = new SCurveLimiter(1.0, 6.0, 120.0);
-    private final SCurveLimiter omLim = new SCurveLimiter(1.0, 8.0, 200.0);
+    // S-Curve motion limiters - values from Constants.DriveConstants
+    private final SCurveLimiter vxLim =
+            new SCurveLimiter(
+                    Constants.DriveConstants.SCURVE_VX_MAX_VELOCITY,
+                    Constants.DriveConstants.SCURVE_VX_MAX_ACCEL,
+                    Constants.DriveConstants.SCURVE_VX_MAX_JERK);
+    private final SCurveLimiter vyLim =
+            new SCurveLimiter(
+                    Constants.DriveConstants.SCURVE_VY_MAX_VELOCITY,
+                    Constants.DriveConstants.SCURVE_VY_MAX_ACCEL,
+                    Constants.DriveConstants.SCURVE_VY_MAX_JERK);
+    private final SCurveLimiter omLim =
+            new SCurveLimiter(
+                    Constants.DriveConstants.SCURVE_OMEGA_MAX_VELOCITY,
+                    Constants.DriveConstants.SCURVE_OMEGA_MAX_ACCEL,
+                    Constants.DriveConstants.SCURVE_OMEGA_MAX_JERK);
 
     // Toggle flag
-    private boolean sCurveEnabled = true;
+    private boolean sCurveEnabled = Constants.DriveConstants.SCURVE_ENABLED_DEFAULT;
 
     /* Setting up bindings for necessary control of the swerve drive platform */
     private final SwerveRequest.FieldCentric drive =
@@ -53,9 +65,12 @@ public class RobotContainer {
 
     private final Telemetry logger = new Telemetry(MaxSpeed);
 
-    private final CommandXboxController joystick = new CommandXboxController(0);
+    private final CommandXboxController joystick =
+            new CommandXboxController(Constants.OIConstants.DRIVER_CONTROLLER_PORT);
 
+    // Subsystems
     public final CommandSwerveDrivetrain drivetrain = TunerConstants.createDrivetrain();
+    public final VisionSubsystem vision = new VisionSubsystem(drivetrain);
 
     public RobotContainer() {
         configureBindings();
@@ -77,11 +92,17 @@ public class RobotContainer {
                 drivetrain.applyRequest(
                         () -> {
                             double xRaw =
-                                    -MathUtil.applyDeadband(joystick.getLeftY(), deadBandJoyStick);
+                                    -MathUtil.applyDeadband(
+                                            joystick.getLeftY(),
+                                            Constants.OIConstants.JOYSTICK_DEADBAND);
                             double yRaw =
-                                    -MathUtil.applyDeadband(joystick.getLeftX(), deadBandJoyStick);
+                                    -MathUtil.applyDeadband(
+                                            joystick.getLeftX(),
+                                            Constants.OIConstants.JOYSTICK_DEADBAND);
                             double rRaw =
-                                    -MathUtil.applyDeadband(joystick.getRightX(), deadBandJoyStick);
+                                    -MathUtil.applyDeadband(
+                                            joystick.getRightX(),
+                                            Constants.OIConstants.JOYSTICK_DEADBAND);
 
                             double xCmd, yCmd, rCmd;
 
@@ -118,11 +139,15 @@ public class RobotContainer {
                                         })
                                 .ignoringDisable(true));
 
-        // Might be used later, keeping it here for example.
-        /*joystick.a().whileTrue(drivetrain.applyRequest(() -> brake));
-        joystick.b().whileTrue(drivetrain.applyRequest(() ->
-            point.withModuleDirection(new Rotation2d(-joystick.getLeftY(), -joystick.getLeftX()))
-        ));*/
+        // ========== VISION ALIGNMENT ==========
+        // Right bumper: Align to AprilTag at 1 meter distance
+        joystick.rightBumper()
+                .whileTrue(AlignToTagCommand.withDefaultDistance(drivetrain, vision))
+                .onFalse(
+                        Commands.runOnce(
+                                () -> System.out.println("[Align] Button released"), drivetrain));
+
+        // ========== S-CURVE TOGGLE ==========
         joystick.a()
                 .onTrue(
                         Commands.runOnce(
@@ -135,15 +160,18 @@ public class RobotContainer {
                                                 double xRaw =
                                                         -MathUtil.applyDeadband(
                                                                 joystick.getLeftY(),
-                                                                deadBandJoyStick);
+                                                                Constants.OIConstants
+                                                                        .JOYSTICK_DEADBAND);
                                                 double yRaw =
                                                         -MathUtil.applyDeadband(
                                                                 joystick.getLeftX(),
-                                                                deadBandJoyStick);
+                                                                Constants.OIConstants
+                                                                        .JOYSTICK_DEADBAND);
                                                 double rRaw =
                                                         -MathUtil.applyDeadband(
                                                                 joystick.getRightX(),
-                                                                deadBandJoyStick);
+                                                                Constants.OIConstants
+                                                                        .JOYSTICK_DEADBAND);
                                                 vxLim.reset(xRaw);
                                                 vyLim.reset(yRaw);
                                                 omLim.reset(rRaw);
@@ -157,8 +185,8 @@ public class RobotContainer {
                                 .ignoringDisable(true) // let you toggle while Disabled
                         );
 
+        // ========== SYSID ROUTINES ==========
         // Run SysId routines when holding back/start and X/Y.
-        // Note that each routine should be run exactly once in a single log.
         joystick.back().and(joystick.y()).whileTrue(drivetrain.sysIdDynamic(Direction.kForward));
         joystick.back().and(joystick.x()).whileTrue(drivetrain.sysIdDynamic(Direction.kReverse));
         joystick.start()
@@ -168,11 +196,13 @@ public class RobotContainer {
                 .and(joystick.x())
                 .whileTrue(drivetrain.sysIdQuasistatic(Direction.kReverse));
 
+        // ========== FIELD-CENTRIC RESET ==========
         // reset the field-centric heading on left bumper press
         joystick.leftBumper().onTrue(drivetrain.runOnce(() -> drivetrain.seedFieldCentric()));
 
         drivetrain.registerTelemetry(logger::telemeterize);
 
+        // ========== CALIBRATION SEQUENCE ==========
         // Combo: hold X + Y + A + B for 3 seconds
         var zeroHold =
                 joystick.x().and(joystick.y()).and(joystick.a()).and(joystick.b()).debounce(3.0);
