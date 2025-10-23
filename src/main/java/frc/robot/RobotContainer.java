@@ -18,8 +18,10 @@ import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.commands.AlignToTagCommand;
 import frc.robot.subsystems.swerve.CommandSwerveDrivetrain;
+import frc.robot.subsystems.util.BrownoutProtection;
 import frc.robot.subsystems.util.CalibrateAzimuthPersist;
 import frc.robot.subsystems.util.Diagnostics;
+import frc.robot.subsystems.util.ExponentialScale;
 import frc.robot.subsystems.util.Haptics;
 import frc.robot.subsystems.util.SCurveLimiter;
 import frc.robot.subsystems.vision.VisionSubsystem;
@@ -30,6 +32,13 @@ public class RobotContainer {
     private double MaxAngularRate =
             RotationsPerSecond.of(Constants.DriveConstants.MAX_ANGULAR_RATE_TELEOP)
                     .in(RadiansPerSecond); // Max angular velocity from Constants
+
+    // Battery brownout protection
+    private final BrownoutProtection brownoutProtection = new BrownoutProtection();
+
+    // Exponential scaling for joystick inputs - applied BEFORE S-curve
+    private final ExponentialScale expScale =
+            new ExponentialScale(Constants.DriveConstants.JOYSTICK_EXPONENTIAL_FACTOR);
 
     // S-Curve motion limiters - values from Constants.DriveConstants
     private final SCurveLimiter vxLim =
@@ -85,6 +94,11 @@ public class RobotContainer {
                 "BR", RobotConfig.brEnc(), RobotConfig.brSteer(), RobotConfig.brDrive());
     }
 
+    /** Called periodically to update battery voltage monitoring */
+    public void periodic() {
+        brownoutProtection.update();
+    }
+
     private void configureBindings() {
         // Note that X is defined as forward according to WPILib convention,
         // and Y is defined as to the left according to WPILib convention.
@@ -104,23 +118,30 @@ public class RobotContainer {
                                             joystick.getRightX(),
                                             Constants.OIConstants.JOYSTICK_DEADBAND);
 
+                            // Apply exponential scaling for finer control at low speeds
+                            double xScaled = expScale.calculate(xRaw);
+                            double yScaled = expScale.calculate(yRaw);
+                            double rScaled = expScale.calculate(rRaw);
+
                             double xCmd, yCmd, rCmd;
 
                             if (sCurveEnabled) {
-                                // (optional) shaping for finer center control
-                                double xs = Math.copySign(xRaw * xRaw, xRaw);
-                                double ys = Math.copySign(yRaw * yRaw, yRaw);
-                                double rs = Math.copySign(rRaw * rRaw, rRaw);
-
-                                xCmd = vxLim.calculate(xs) * MaxSpeed;
-                                yCmd = vyLim.calculate(ys) * MaxSpeed;
-                                rCmd = omLim.calculate(rs) * MaxAngularRate;
+                                // Apply S-curve motion profiling
+                                xCmd = vxLim.calculate(xScaled) * MaxSpeed;
+                                yCmd = vyLim.calculate(yScaled) * MaxSpeed;
+                                rCmd = omLim.calculate(rScaled) * MaxAngularRate;
                             } else {
-                                // Bypass filters
-                                xCmd = xRaw * MaxSpeed;
-                                yCmd = yRaw * MaxSpeed;
-                                rCmd = rRaw * MaxAngularRate;
+                                // Bypass S-curve filters but keep exponential scaling
+                                xCmd = xScaled * MaxSpeed;
+                                yCmd = yScaled * MaxSpeed;
+                                rCmd = rScaled * MaxAngularRate;
                             }
+
+                            // Apply brownout protection speed limiting
+                            double speedScale = brownoutProtection.getSpeedScaleFactor();
+                            xCmd *= speedScale;
+                            yCmd *= speedScale;
+                            rCmd *= speedScale;
 
                             return drive.withVelocityX(xCmd)
                                     .withVelocityY(yCmd)
@@ -172,9 +193,10 @@ public class RobotContainer {
                                                                 joystick.getRightX(),
                                                                 Constants.OIConstants
                                                                         .JOYSTICK_DEADBAND);
-                                                vxLim.reset(xRaw);
-                                                vyLim.reset(yRaw);
-                                                omLim.reset(rRaw);
+                                                // Apply exponential scaling before seeding filters
+                                                vxLim.reset(expScale.calculate(xRaw));
+                                                vyLim.reset(expScale.calculate(yRaw));
+                                                omLim.reset(expScale.calculate(rRaw));
                                             }
 
                                             sCurveEnabled = newState;
