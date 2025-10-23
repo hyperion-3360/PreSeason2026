@@ -17,10 +17,23 @@ Ce repo sert à préparer la saison officielle de la compétition **FIRST Roboti
 
 ## 🧰 Technologies et outils utilisés
 
-- **WPILib** – Bibliothèque FRC pour la programmation robotique  
-- **Java** – Langage principal du projet 
-- **GradleRIO** – Outil de build et de déploiement du code sur le robot  
-- **Git & GitHub** – Gestion de version, collaboration et revue de code  
+- **WPILib** – Bibliothèque FRC pour la programmation robotique
+- **Java** – Langage principal du projet
+- **GradleRIO** – Outil de build et de déploiement du code sur le robot
+- **Git & GitHub** – Gestion de version, collaboration et revue de code
+- **CTRE Phoenix 6** – Contrôle des moteurs swerve drive
+- **PhotonVision** – Vision par ordinateur pour AprilTags
+- **AdvantageKit** – Enregistrement et analyse des données de match
+- **PathPlanner** – Planification de trajectoires autonomes
 
+---
+
+## 📚 Documentation
+
+Toute la documentation technique est disponible dans le dossier **[docs/](docs/)**:
+
+- **[AdvantageKit Setup](docs/ADVANTAGEKIT_SETUP.md)** - Configuration et utilisation de l'enregistrement des données
+- **[Software Limits Guide](docs/SOFTWARE_LIMITS_GUIDE.md)** - Système de sécurité pour les mécanismes
+- **[Documentation Index](docs/README.md)** - Index complet de toute la documentation
 
 
