@@ -36,6 +36,23 @@ public final class Constants {
         public static final double MAX_ANGULAR_RATE_TELEOP =
                 0.75; // Rotations per second for teleop
 
+        // Exponential scaling for joystick inputs (0 = linear, 1 = fully quadratic)
+        // Higher values = more precision at low speeds, typical range: 0.3 to 0.5
+        public static final double JOYSTICK_EXPONENTIAL_FACTOR = 0.4;
+
+        // Battery voltage thresholds for brownout protection
+        // NOTE: These are tuned for competition - battery will drop during match!
+        // Typical voltages: Start=12.5V, Mid-match=11.5V, End=10.5-11.5V
+        public static final double BATTERY_NOMINAL_VOLTAGE = 12.0; // Fully charged battery voltage
+        public static final double BATTERY_WARNING_VOLTAGE = 10.5; // Start warning (yellow) - end of match
+        public static final double BATTERY_CRITICAL_VOLTAGE = 9.5; // Critical level (red) - battery failing
+        public static final double BATTERY_BROWNOUT_VOLTAGE = 8.5; // Severe brownout (emergency only)
+
+        // Speed scaling factors based on voltage
+        public static final double SPEED_SCALE_WARNING = 0.90; // 90% speed at warning level
+        public static final double SPEED_SCALE_CRITICAL = 0.70; // 70% speed at critical level
+        public static final double SPEED_SCALE_BROWNOUT = 0.50; // 50% speed at brownout level
+
         // S-Curve motion profile limits
         public static final double SCURVE_VX_MAX_VELOCITY = 1.0; // joystick units/s
         public static final double SCURVE_VX_MAX_ACCEL = 6.0; // joystick units/s²
