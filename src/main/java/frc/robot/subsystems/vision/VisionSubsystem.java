@@ -1,7 +1,3 @@
-// Copyright (c) FIRST and other WPILib contributors.
-// Open Source Software; you can modify and/or share it under the terms of
-// the WPILib BSD license file in the root directory of this project.
-
 package frc.robot.subsystems.vision;
 
 import edu.wpi.first.math.geometry.Pose2d;
@@ -16,6 +12,7 @@ import frc.robot.subsystems.swerve.CommandSwerveDrivetrain;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import org.littletonrobotics.junction.Logger;
 import org.photonvision.simulation.VisionSystemSim;
 import org.photonvision.targeting.PhotonTrackedTarget;
 
@@ -137,6 +134,24 @@ public class VisionSubsystem extends SubsystemBase {
 
         // Update telemetry
         updateTelemetry(currentPose);
+
+        // AdvantageKit logging
+        Logger.recordOutput("Vision/HasTarget", hasTarget());
+        Logger.recordOutput("Vision/TargetID", m_targetTagId);
+        Logger.recordOutput("Vision/CameraCount", m_cameras.size());
+
+        // Log target pose if available
+        getTargetPose()
+                .ifPresent(
+                        targetPose -> {
+                            Logger.recordOutput("Vision/TargetPose", targetPose);
+                            Logger.recordOutput("Vision/TargetX", targetPose.getX());
+                            Logger.recordOutput("Vision/TargetY", targetPose.getY());
+                        });
+
+        // Log angle to target for auto-aim
+        Rotation2d angleToTarget = getAngleToTarget();
+        Logger.recordOutput("Vision/AngleToTarget", angleToTarget.getRadians());
     }
 
     /** Updates which AprilTag we're tracking/locked onto. */

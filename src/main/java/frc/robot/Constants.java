@@ -1,7 +1,3 @@
-// Copyright (c) FIRST and other WPILib contributors.
-// Open Source Software; you can modify and/or share it under the terms of
-// the WPILib BSD license file in the root directory of this project.
-
 package frc.robot;
 
 import edu.wpi.first.apriltag.AprilTagFieldLayout;
@@ -20,9 +16,12 @@ import edu.wpi.first.math.util.Units;
  * constants are needed, to reduce verbosity.
  */
 public final class Constants {
+    /** Robot identification for logging */
+    public static final String ROBOT_NAME = "PreSeason2026";
+
     /** AprilTag field layout for the current game */
     public static final AprilTagFieldLayout tagLayout =
-            AprilTagFields.kDefaultField.loadAprilTagLayoutField();
+            AprilTagFieldLayout.loadField(AprilTagFields.kDefaultField);
 
     /** Operator Interface (Controller) Constants */
     public static final class OIConstants {
@@ -131,5 +130,48 @@ public final class Constants {
         public static final double AUTO_AIM_kD = 0.15; // Rotation D gain for damping
         public static final double AUTO_AIM_MAX_ANGULAR_VELOCITY = Math.PI; // rad/s
         public static final double AUTO_AIM_TOLERANCE = Units.degreesToRadians(5.0); // 5 degrees
+    }
+
+    /**
+     * Software Limits - Example configurations for common mechanisms
+     *
+     * <p>These are EXAMPLES - adjust based on your actual robot hardware! Measure your mechanism's
+     * physical range and add safety margins.
+     */
+    public static final class MechanismLimits {
+        /** Example: Pivot/Arm limits (in degrees) */
+        public static final class ArmLimits {
+            public static final double MIN_ANGLE = -5.0; // degrees - slightly below horizontal
+            public static final double MAX_ANGLE = 110.0; // degrees - straight up
+            public static final double WARNING_MARGIN = 10.0; // degrees - warn 10° from limits
+        }
+
+        /** Example: Elevator/Linear mechanism limits (in meters) */
+        public static final class ElevatorLimits {
+            public static final double MIN_HEIGHT = 0.0; // meters - fully retracted
+            public static final double MAX_HEIGHT = 1.2; // meters - fully extended
+            public static final double WARNING_MARGIN = 0.1; // meters - warn 10cm from limits
+        }
+
+        /** Example: Wrist/Intake pivot limits (in degrees) */
+        public static final class WristLimits {
+            public static final double MIN_ANGLE = -90.0; // degrees - folded back
+            public static final double MAX_ANGLE = 90.0; // degrees - folded forward
+            public static final double WARNING_MARGIN = 15.0; // degrees
+        }
+
+        /** Example: Climber/Winch limits (in rotations) */
+        public static final class ClimberLimits {
+            public static final double MIN_ROTATIONS = 0.0; // rotations - fully retracted
+            public static final double MAX_ROTATIONS = 50.0; // rotations - fully extended
+            public static final double WARNING_MARGIN = 5.0; // rotations
+        }
+
+        /** Example: Turret rotation limits (in degrees) */
+        public static final class TurretLimits {
+            public static final double MIN_ANGLE = -180.0; // degrees - full left
+            public static final double MAX_ANGLE = 180.0; // degrees - full right
+            public static final double WARNING_MARGIN = 20.0; // degrees
+        }
     }
 }
