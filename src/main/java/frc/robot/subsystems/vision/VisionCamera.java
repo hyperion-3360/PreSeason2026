@@ -1,7 +1,3 @@
-// Copyright (c) FIRST and other WPILib contributors.
-// Open Source Software; you can modify and/or share it under the terms of
-// the WPILib BSD license file in the root directory of this project.
-
 package frc.robot.subsystems.vision;
 
 import edu.wpi.first.apriltag.AprilTagFieldLayout;
@@ -22,7 +18,6 @@ import org.photonvision.simulation.VisionSystemSim;
 import org.photonvision.targeting.PhotonPipelineResult;
 import org.photonvision.targeting.PhotonTrackedTarget;
 
-/** Wrapper class for a PhotonVision camera that handles pose estimation and target tracking. */
 public class VisionCamera {
     private final PhotonCamera m_camera;
     private final PhotonPoseEstimator m_poseEstimator;
@@ -78,7 +73,10 @@ public class VisionCamera {
      * @param currentRobotPose Current estimated robot pose for reference
      */
     public void update(Pose2d currentRobotPose) {
-        m_latestResult = m_camera.getLatestResult();
+        m_latestResult =
+                m_camera.getAllUnreadResults().stream()
+                        .reduce((first, second) -> second) // Get last result
+                        .orElse(new PhotonPipelineResult());
 
         if (m_latestResult.hasTargets()) {
             // Update reference pose for pose estimator

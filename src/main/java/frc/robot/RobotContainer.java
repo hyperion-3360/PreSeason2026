@@ -1,7 +1,3 @@
-// Copyright (c) FIRST and other WPILib contributors.
-// Open Source Software; you can modify and/or share it under the terms of
-// the WPILib BSD license file in the root directory of this project.
-
 package frc.robot;
 
 import static edu.wpi.first.units.Units.*;
@@ -27,6 +23,7 @@ import frc.robot.subsystems.util.ExponentialScale;
 import frc.robot.subsystems.util.Haptics;
 import frc.robot.subsystems.util.SCurveLimiter;
 import frc.robot.subsystems.vision.VisionSubsystem;
+import org.littletonrobotics.junction.Logger;
 
 public class RobotContainer {
     private double MaxSpeed =
@@ -111,9 +108,30 @@ public class RobotContainer {
                 "BR", RobotConfig.brEnc(), RobotConfig.brSteer(), RobotConfig.brDrive());
     }
 
-    /** Called periodically to update battery voltage monitoring */
+    /** Called periodically to update battery voltage monitoring and logging */
     public void periodic() {
         brownoutProtection.update();
+
+        // Log driver inputs (raw, after deadband)
+        Logger.recordOutput("Driver/LeftY", joystick.getLeftY());
+        Logger.recordOutput("Driver/LeftX", joystick.getLeftX());
+        Logger.recordOutput("Driver/RightX", joystick.getRightX());
+        Logger.recordOutput("Driver/LeftTrigger", joystick.getLeftTriggerAxis());
+        Logger.recordOutput("Driver/RightTrigger", joystick.getRightTriggerAxis());
+
+        // Log control modes
+        Logger.recordOutput("RobotState/SCurveEnabled", sCurveEnabled);
+        Logger.recordOutput("RobotState/AutoAimEnabled", autoAimEnabled);
+
+        // Log battery and brownout protection
+        Logger.recordOutput("Battery/Voltage", brownoutProtection.getVoltage());
+        Logger.recordOutput("Battery/Status", brownoutProtection.getStatus().toString());
+        Logger.recordOutput("Battery/SpeedScale", brownoutProtection.getSpeedScaleFactor());
+        Logger.recordOutput("Battery/IsCritical", brownoutProtection.isCritical());
+
+        // Log max speeds (useful for seeing brownout effects)
+        Logger.recordOutput("RobotState/MaxSpeed", MaxSpeed);
+        Logger.recordOutput("RobotState/MaxAngularRate", MaxAngularRate);
     }
 
     private void configureBindings() {
