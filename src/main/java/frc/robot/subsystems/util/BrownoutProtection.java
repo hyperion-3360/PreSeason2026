@@ -7,11 +7,13 @@ package frc.robot.subsystems.util;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.RobotController;
 import edu.wpi.first.wpilibj.Timer;
+import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import frc.robot.Constants;
 
 /**
  * Monitors battery voltage and provides brownout protection by limiting speed when voltage drops
- * too low. Displays clear warnings when battery needs to be changed.
+ * too low. Displays clear warnings when battery needs to be changed. Provides haptic feedback to
+ * the driver when battery needs attention.
  */
 public class BrownoutProtection {
     public enum BatteryStatus {
@@ -25,6 +27,7 @@ public class BrownoutProtection {
     private BatteryStatus m_lastStatus = BatteryStatus.GOOD;
     private double m_lastWarningTime = 0;
     private static final double WARNING_INTERVAL = 5.0; // Warn every 5 seconds
+    private final CommandXboxController m_controller;
 
     // ANSI color codes for console output
     private static final String ANSI_RESET = "\u001B[0m";
@@ -32,6 +35,15 @@ public class BrownoutProtection {
     private static final String ANSI_YELLOW = "\u001B[33m";
     private static final String ANSI_GREEN = "\u001B[32m";
     private static final String ANSI_BOLD = "\u001B[1m";
+
+    /**
+     * Creates a new BrownoutProtection instance.
+     *
+     * @param controller The driver's controller for haptic feedback
+     */
+    public BrownoutProtection(CommandXboxController controller) {
+        m_controller = controller;
+    }
 
     /**
      * Updates the battery status based on current voltage. Should be called periodically (every
@@ -43,8 +55,7 @@ public class BrownoutProtection {
 
         // Check if status has changed or if it's time for a periodic warning
         boolean statusChanged = m_currentStatus != m_lastStatus;
-        boolean timeForWarning =
-                Timer.getFPGATimestamp() - m_lastWarningTime > WARNING_INTERVAL;
+        boolean timeForWarning = Timer.getFPGATimestamp() - m_lastWarningTime > WARNING_INTERVAL;
 
         if (statusChanged || (m_currentStatus != BatteryStatus.GOOD && timeForWarning)) {
             logBatteryStatus(voltage);
@@ -58,8 +69,60 @@ public class BrownoutProtection {
                         String.format(
                                 "BATTERY CRITICAL: %.2fV - CHANGE BATTERY IMMEDIATELY!", voltage),
                         false);
+
+                // Trigger haptic feedback - continuous rumble for critical battery
+                triggerCriticalHaptics();
+            } else if (statusChanged && m_currentStatus == BatteryStatus.GOOD) {
+                // Battery recovered - stop rumble
+                stopHaptics();
             }
         }
+
+        // Keep rumbling if in critical/brownout state
+        if (m_currentStatus == BatteryStatus.CRITICAL
+                || m_currentStatus == BatteryStatus.BROWNOUT) {
+            maintainCriticalHaptics();
+        }
+    }
+
+    /** Triggers haptic feedback for critical battery conditions. */
+    private void triggerCriticalHaptics() {
+        // Start continuous rumble pattern - alternating intensity for attention
+        Haptics.rumble(m_controller, 1.0, 1.0, 0.5).schedule();
+    }
+
+    /** Maintains haptic feedback during critical battery conditions. */
+    private void maintainCriticalHaptics() {
+        // Keep a pulsing rumble pattern when battery is critical
+        double timeSinceWarning = Timer.getFPGATimestamp() - m_lastWarningTime;
+        if (timeSinceWarning < 0.3) {
+            // Pulse for first 300ms of each warning interval
+            m_controller
+                    .getHID()
+                    .setRumble(edu.wpi.first.wpilibj.GenericHID.RumbleType.kBothRumble, 0.8);
+        } else if (timeSinceWarning < 0.6) {
+            // Off for 300ms
+            m_controller
+                    .getHID()
+                    .setRumble(edu.wpi.first.wpilibj.GenericHID.RumbleType.kBothRumble, 0.0);
+        } else if (timeSinceWarning < 0.9) {
+            // Pulse again
+            m_controller
+                    .getHID()
+                    .setRumble(edu.wpi.first.wpilibj.GenericHID.RumbleType.kBothRumble, 0.8);
+        } else {
+            // Off until next warning
+            m_controller
+                    .getHID()
+                    .setRumble(edu.wpi.first.wpilibj.GenericHID.RumbleType.kBothRumble, 0.0);
+        }
+    }
+
+    /** Stops all haptic feedback. */
+    private void stopHaptics() {
+        m_controller
+                .getHID()
+                .setRumble(edu.wpi.first.wpilibj.GenericHID.RumbleType.kBothRumble, 0.0);
     }
 
     /**
@@ -122,9 +185,7 @@ public class BrownoutProtection {
 
             case GOOD:
                 colorCode = ANSI_GREEN;
-                statusText =
-                        String.format(
-                                "%sBattery OK: %.2fV%s", colorCode, voltage, ANSI_RESET);
+                statusText = String.format("%sBattery OK: %.2fV%s", colorCode, voltage, ANSI_RESET);
                 System.out.println(statusText);
                 break;
         }
