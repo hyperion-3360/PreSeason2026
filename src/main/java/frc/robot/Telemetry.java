@@ -132,12 +132,15 @@ public class Telemetry {
         driveModuleTargets.set(state.ModuleTargets);
         driveModulePositions.set(state.ModulePositions);
         driveTimestamp.set(state.Timestamp);
-        driveOdometryFrequency.set(1.0 / state.OdometryPeriod);
+        // Guard against division by zero
+        if (state.OdometryPeriod > 0) {
+            driveOdometryFrequency.set(1.0 / state.OdometryPeriod);
+        }
 
         /* Also write to log file */
         m_poseArray[0] = state.Pose.getX();
         m_poseArray[1] = state.Pose.getY();
-        m_poseArray[2] = state.Pose.getRotation().getDegrees();
+        m_poseArray[2] = state.Pose.getRotation().getRadians(); // Store as radians, not degrees
         for (int i = 0; i < 4; ++i) {
             m_moduleStatesArray[i * 2 + 0] = state.ModuleStates[i].angle.getRadians();
             m_moduleStatesArray[i * 2 + 1] = state.ModuleStates[i].speedMetersPerSecond;
@@ -163,8 +166,11 @@ public class Telemetry {
         for (int i = 0; i < 4; ++i) {
             m_moduleSpeeds[i].setAngle(state.ModuleStates[i].angle);
             m_moduleDirections[i].setAngle(state.ModuleStates[i].angle);
-            m_moduleSpeeds[i].setLength(
-                    state.ModuleStates[i].speedMetersPerSecond / (2 * MaxSpeed));
+            // Guard against division by zero
+            if (MaxSpeed > 0) {
+                m_moduleSpeeds[i].setLength(
+                        state.ModuleStates[i].speedMetersPerSecond / (2 * MaxSpeed));
+            }
         }
     }
 }
