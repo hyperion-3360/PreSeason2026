@@ -44,16 +44,18 @@ public final class Constants {
         // Typical voltages: Start=12.5V, Mid-match=11.5V, End=10.5-11.5V
         public static final double BATTERY_NOMINAL_VOLTAGE = 12.0; // Fully charged battery voltage
         public static final double BATTERY_WARNING_VOLTAGE =
-                10.5; // Start warning (yellow) - end of match
+                8.5; // Start warning (yellow) - battery getting low, plan to swap soon
         public static final double BATTERY_CRITICAL_VOLTAGE =
-                9.5; // Critical level (red) - battery failing
+                7.5; // Critical level (red) - motors may start losing power
         public static final double BATTERY_BROWNOUT_VOLTAGE =
-                8.5; // Severe brownout (emergency only)
+                7.0; // Severe brownout (emergency) - approaching roboRIO brownout (6.8V)
 
         // Speed scaling factors based on voltage
-        public static final double SPEED_SCALE_WARNING = 0.90; // 90% speed at warning level
-        public static final double SPEED_SCALE_CRITICAL = 0.70; // 70% speed at critical level
-        public static final double SPEED_SCALE_BROWNOUT = 0.50; // 50% speed at brownout level
+        // NOTE: Only CRITICAL and BROWNOUT levels limit speed - WARNING just alerts
+        public static final double SPEED_SCALE_WARNING = 1.0; // 100% speed - just a warning
+        public static final double SPEED_SCALE_CRITICAL =
+                0.80; // 80% speed when motors losing power
+        public static final double SPEED_SCALE_BROWNOUT = 0.60; // 60% speed at emergency levels
 
         // S-Curve motion profile limits
         public static final double SCURVE_VX_MAX_VELOCITY = 1.0; // joystick units/s
@@ -74,19 +76,24 @@ public final class Constants {
     /** Vision Subsystem Constants */
     public static final class VisionConstants {
         // Camera configuration
-        public static final String LIMELIGHT_NAME = "limelight";
+        public static final String LIMELIGHT_NAME = "lml3";
 
         // Camera mounting (adjust these to match your robot!)
+        // IMPORTANT: Measure these values carefully!
+        // - X: Positive = forward, Negative = backward from robot center
+        // - Y: Positive = left, Negative = right from robot center
+        // - Z: Height above ground
+        // - Pitch: Positive = angled up, Negative = angled down
         public static final Transform3d ROBOT_TO_LIMELIGHT =
                 new Transform3d(
                         new Translation3d(
-                                Units.inchesToMeters(-2.75), // X: back from center
-                                Units.inchesToMeters(0), // Y: centered
-                                Units.inchesToMeters(34)), // Z: height off ground
+                                Units.inchesToMeters(-2.75), // X: 2.75" behind center
+                                Units.inchesToMeters(0), // Y: centered left/right
+                                Units.inchesToMeters(34)), // Z: 34" above ground
                         new Rotation3d(
-                                0, // Roll
-                                Units.degreesToRadians(15), // Pitch (angled up)
-                                0)); // Yaw
+                                0, // Roll: rotation around forward axis
+                                Units.degreesToRadians(-15), // Pitch: -15° angled DOWN (was +15)
+                                0)); // Yaw: rotation around vertical axis
 
         // Target tracking
         public static final double TARGET_LOCK_TIMEOUT = 1.0; // seconds
@@ -103,26 +110,34 @@ public final class Constants {
 
     /** Auto-Align to AprilTag Constants */
     public static final class AutoAlignConstants {
-        // Default alignment distance
-        public static final double DEFAULT_ALIGN_DISTANCE = 1.0; // meters from tag
+        // Robot dimensions (adjust to your robot!)
+        public static final double ROBOT_CENTER_TO_FRONT_BUMPER =
+                Units.inchesToMeters(16.0); // Distance from robot center to front bumper edge
 
-        // Position and angle tolerances
-        public static final double POSITION_TOLERANCE = 0.05; // 5 cm
-        public static final double ANGLE_TOLERANCE = Units.degreesToRadians(2.0); // 2 degrees
+        // Default alignment distance (from FRONT BUMPER to tag)
+        public static final double DEFAULT_ALIGN_DISTANCE = 1.0; // meters from bumper to tag
 
-        // Translation PID (X and Y movement)
-        public static final double kP_TRANSLATION = 5.0;
-        public static final double kI_TRANSLATION = 0.0;
-        public static final double kD_TRANSLATION = 0.25;
-        public static final double MAX_VELOCITY_TRANSLATION = 8.0; // m/s
-        public static final double MAX_ACCELERATION_TRANSLATION = 10.0; // m/s²
+        // Position and angle tolerances (tighter for better precision)
+        public static final double POSITION_TOLERANCE = 0.02; // 2 cm
+        public static final double ANGLE_TOLERANCE = Units.degreesToRadians(1.0); // 1 degree
 
-        // Rotation PID (Theta)
-        public static final double kP_ROTATION = 7.0;
-        public static final double kI_ROTATION = 0.0;
-        public static final double kD_ROTATION = 0.3;
-        public static final double MAX_VELOCITY_ROTATION = 2.5 * Math.PI; // rad/s
-        public static final double MAX_ACCELERATION_ROTATION = 5.0 * Math.PI; // rad/s²
+        // Translation PID (X and Y movement) - tuned for precision
+        public static final double kP_TRANSLATION = 6.0;
+        public static final double kI_TRANSLATION =
+                0.1; // Small I term to eliminate steady-state error
+        public static final double kD_TRANSLATION = 0.4; // Increased from 0.25 for damping
+        public static final double MAX_VELOCITY_TRANSLATION =
+                6.0; // Reduced from 8.0 for smoother approach
+        public static final double MAX_ACCELERATION_TRANSLATION =
+                8.0; // Reduced from 10.0 for smoothness
+
+        // Rotation PID (Theta) - tuned for precision
+        public static final double kP_ROTATION = 8.0; // Increased from 7.0 for tighter tracking
+        public static final double kI_ROTATION = 0.05; // Small I term for final alignment
+        public static final double kD_ROTATION = 0.5; // Increased from 0.3 to reduce oscillation
+        public static final double MAX_VELOCITY_ROTATION =
+                2.0 * Math.PI; // Reduced from 2.5π for smoother rotation
+        public static final double MAX_ACCELERATION_ROTATION = 4.0 * Math.PI; // Reduced from 5.0π
 
         // Auto-aim while driving (driver controls translation, robot controls rotation)
         public static final double AUTO_AIM_kP = 4.0; // Rotation P gain for aim assist
