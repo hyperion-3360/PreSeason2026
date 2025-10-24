@@ -14,10 +14,10 @@ import org.littletonrobotics.junction.Logger;
 /**
  * Example arm/pivot mechanism subsystem demonstrating software limit usage.
  *
- * <p>This is a TEMPLATE - customize for your actual mechanism: - Change motor CAN IDs - Adjust gear
+ * This is a TEMPLATE - customize for your actual mechanism: - Change motor CAN IDs - Adjust gear
  * ratios - Tune PID values - Set correct sensor-to-mechanism conversion
  *
- * <p>Safety features: - Software limits prevent mechanism damage - Automatic position clamping -
+ * Safety features: - Software limits prevent mechanism damage - Automatic position clamping -
  * Velocity limiting at boundaries - Warning zone alerts - AdvantageKit logging
  */
 public class ExampleArmSubsystem extends SubsystemBase {

@@ -105,7 +105,11 @@ public class VisionSubsystem extends SubsystemBase {
     @Override
     public void periodic() {
         // Get current robot pose for simulation and telemetry
-        Pose2d currentPose = m_drivetrain.getState().Pose;
+        var drivetrainState = m_drivetrain.getState();
+        if (drivetrainState == null || drivetrainState.Pose == null) {
+            return; // Skip this cycle if drivetrain state is not ready
+        }
+        Pose2d currentPose = drivetrainState.Pose;
 
         // Update simulation if running
         if (RobotBase.isSimulation() && m_visionSim != null) {
@@ -261,6 +265,12 @@ public class VisionSubsystem extends SubsystemBase {
      * @param tagId The AprilTag ID to target
      */
     public void setTargetTag(int tagId) {
+        // Validate that the tag exists in the field layout
+        if (Constants.tagLayout.getTagPose(tagId).isEmpty()) {
+            System.err.println(
+                    "[Vision] Warning: Tag ID " + tagId + " does not exist in field layout!");
+            return;
+        }
         m_targetTagId = tagId;
         m_lastTargetSeenTime = edu.wpi.first.wpilibj.Timer.getFPGATimestamp();
     }
@@ -302,11 +312,18 @@ public class VisionSubsystem extends SubsystemBase {
         // We want to face the tag, so we rotate 180 degrees
         Rotation2d faceTagRotation = tag.getRotation().plus(Rotation2d.fromDegrees(180));
 
-        // Calculate position: move back from tag by the desired distance
-        double x = tag.getX() - distanceMeters * faceTagRotation.getCos();
-        double y = tag.getY() - distanceMeters * faceTagRotation.getSin();
+        // Calculate position: distanceMeters is from FRONT BUMPER to tag
+        // We need to account for robot center to front bumper distance
+        double totalDistance =
+                distanceMeters + Constants.AutoAlignConstants.ROBOT_CENTER_TO_FRONT_BUMPER;
 
-        return Optional.of(new Pose2d(x, y, faceTagRotation));
+        // Move back from tag by total distance (so bumper is at desired distance)
+        double x = tag.getX() - totalDistance * faceTagRotation.getCos();
+        double y = tag.getY() - totalDistance * faceTagRotation.getSin();
+
+        Pose2d alignmentPose = new Pose2d(x, y, faceTagRotation);
+
+        return Optional.of(alignmentPose);
     }
 
     /**
@@ -321,8 +338,13 @@ public class VisionSubsystem extends SubsystemBase {
             return new Rotation2d();
         }
 
-        // Get current robot pose
-        Pose2d robotPose = m_drivetrain.getState().Pose;
+        // Get current robot pose with null safety
+        var drivetrainState = m_drivetrain.getState();
+        if (drivetrainState == null || drivetrainState.Pose == null) {
+            // Drivetrain not ready - return zero rotation
+            return new Rotation2d();
+        }
+        Pose2d robotPose = drivetrainState.Pose;
         Pose2d target = targetPose.get();
 
         // Calculate angle from robot to target

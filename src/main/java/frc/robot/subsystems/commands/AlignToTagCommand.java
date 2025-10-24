@@ -31,6 +31,9 @@ public class AlignToTagCommand extends Command {
     private Pose2d m_targetPose;
     private boolean m_hasValidTarget;
 
+    // Throttle console output to reduce spam
+    private double m_lastPrintTime;
+
     /**
      * Creates a new AlignToTagCommand.
      *
@@ -83,7 +86,8 @@ public class AlignToTagCommand extends Command {
                 new SwerveRequest.FieldCentric()
                         .withDriveRequestType(DriveRequestType.OpenLoopVoltage);
 
-        addRequirements(m_drivetrain);
+        // Require both drivetrain and vision to prevent conflicts
+        addRequirements(m_drivetrain, m_vision);
     }
 
     @Override
@@ -116,6 +120,9 @@ public class AlignToTagCommand extends Command {
         m_yController.reset(currentPose.getY());
         m_thetaController.reset(currentPose.getRotation().getRadians());
 
+        // Reset print throttle timer
+        m_lastPrintTime = 0;
+
         System.out.println(
                 "[AlignToTag] Starting alignment to tag "
                         + m_vision.getTargetTagId()
@@ -137,6 +144,24 @@ public class AlignToTagCommand extends Command {
         }
 
         Pose2d currentPose = drivetrainState.Pose;
+
+        // Calculate current distance from bumper to target
+        double distanceToTarget =
+                currentPose.getTranslation().getDistance(m_targetPose.getTranslation());
+        double angleError =
+                Math.abs(
+                        currentPose.getRotation().getRadians()
+                                - m_targetPose.getRotation().getRadians());
+
+        // Print real-time feedback (throttled to every 0.5 seconds)
+        double currentTime = System.currentTimeMillis() / 1000.0;
+        if (currentTime - m_lastPrintTime >= 0.5) {
+            System.out.println(
+                    String.format(
+                            "[AlignToTag] Distance: %.2fm | Angle Error: %.1f° | Target: %.2fm",
+                            distanceToTarget, Math.toDegrees(angleError), m_targetDistance));
+            m_lastPrintTime = currentTime;
+        }
 
         // Calculate velocities using PID controllers
         double xVelocity = m_xController.calculate(currentPose.getX(), m_targetPose.getX());
@@ -162,7 +187,21 @@ public class AlignToTagCommand extends Command {
         if (interrupted) {
             System.out.println("[AlignToTag] Alignment interrupted");
         } else {
-            System.out.println("[AlignToTag] Alignment complete!");
+            // Calculate final distance - just show alignment error
+            var drivetrainState = m_drivetrain.getState();
+            if (drivetrainState != null && drivetrainState.Pose != null && m_targetPose != null) {
+                double alignmentError =
+                        drivetrainState
+                                .Pose
+                                .getTranslation()
+                                .getDistance(m_targetPose.getTranslation());
+                System.out.println(
+                        String.format(
+                                "[AlignToTag] Alignment complete! Error: %.2fm (target bumper distance: %.2fm)",
+                                alignmentError, m_targetDistance));
+            } else {
+                System.out.println("[AlignToTag] Alignment complete!");
+            }
         }
     }
 

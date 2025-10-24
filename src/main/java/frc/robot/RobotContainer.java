@@ -172,14 +172,17 @@ public class RobotContainer {
                                 rCmd = rScaled * MaxAngularRate;
                             }
 
+                            // Apply brownout protection to translation
+                            double speedScale = brownoutProtection.getSpeedScaleFactor();
+                            xCmd *= speedScale;
+                            yCmd *= speedScale;
+
                             // Auto-aim mode: robot controls rotation, driver controls translation
                             if (autoAimEnabled && vision.hasTarget()) {
-                                // Get angle to closest AprilTag
                                 Rotation2d currentHeading =
                                         drivetrain.getState().Pose.getRotation();
                                 Rotation2d targetAngle = vision.getAngleToTarget();
 
-                                // Use PID to calculate rotation command
                                 rCmd =
                                         MathUtil.clamp(
                                                 autoAimPID.calculate(
@@ -189,13 +192,9 @@ public class RobotContainer {
                                                         .AUTO_AIM_MAX_ANGULAR_VELOCITY,
                                                 Constants.AutoAlignConstants
                                                         .AUTO_AIM_MAX_ANGULAR_VELOCITY);
+                            } else {
+                                rCmd *= speedScale;
                             }
-
-                            // Apply brownout protection speed limiting
-                            double speedScale = brownoutProtection.getSpeedScaleFactor();
-                            xCmd *= speedScale;
-                            yCmd *= speedScale;
-                            rCmd *= speedScale;
 
                             return drive.withVelocityX(xCmd)
                                     .withVelocityY(yCmd)
@@ -243,6 +242,7 @@ public class RobotContainer {
                                 () -> {
                                     autoAimEnabled = !autoAimEnabled;
                                     if (autoAimEnabled) {
+                                        autoAimPID.reset();
                                         System.out.println(
                                                 "[Auto-Aim] ENABLED - Robot will auto-rotate to closest AprilTag");
                                         Haptics.buzzOK(joystick).schedule();
@@ -304,21 +304,9 @@ public class RobotContainer {
                 .whileTrue(drivetrain.sysIdQuasistatic(Direction.kReverse));
 
         // ========== FIELD-CENTRIC RESET ==========
-        // Hold L1 (left bumper) for 3 seconds to reset field-centric heading
-        var leftBumperPressed = joystick.leftBumper();
-
-        // Immediate feedback when button is pressed
-        leftBumperPressed.onTrue(
-                Commands.runOnce(
-                        () -> {
-                            System.out.println(
-                                    "[Field-Centric] L1 pressed - holding for 3 seconds to reset orientation...");
-                            Haptics.buzzShort(joystick).schedule();
-                        }));
-
-        // Reset field-centric after 3 second hold
-        leftBumperPressed
-                .debounce(3.0)
+        // Press L1 (left bumper) twice quickly to reset field-centric heading
+        // (Double-tap prevents accidental resets)
+        joystick.leftBumper()
                 .onTrue(
                         Commands.runOnce(
                                 () -> {
