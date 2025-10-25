@@ -5,6 +5,7 @@ import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.wpilibj.RobotBase;
 import edu.wpi.first.wpilibj.smartdashboard.Field2d;
+import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
@@ -31,6 +32,10 @@ public class VisionSubsystem extends SubsystemBase {
     // Target tracking
     private int m_targetTagId = -1; // -1 means no target selected
     private double m_lastTargetSeenTime = edu.wpi.first.wpilibj.Timer.getFPGATimestamp();
+    private TargetPriority m_targetPriority = TargetPriority.BALANCED;
+
+    // Priority chooser for SmartDashboard
+    private final SendableChooser<TargetPriority> m_priorityChooser = new SendableChooser<>();
 
     /**
      * Creates a new VisionSubsystem.
@@ -100,10 +105,27 @@ public class VisionSubsystem extends SubsystemBase {
     private void setupTelemetry() {
         m_visionField = new Field2d();
         SmartDashboard.putData("Vision/Field", m_visionField);
+
+        // Setup priority chooser
+        m_priorityChooser.setDefaultOption("Balanced", TargetPriority.BALANCED);
+        m_priorityChooser.addOption("Closest", TargetPriority.CLOSEST);
+        m_priorityChooser.addOption("Mostly Closest", TargetPriority.MOSTLY_CLOSEST);
+        m_priorityChooser.addOption("Mostly Quality", TargetPriority.MOSTLY_QUALITY);
+        m_priorityChooser.addOption("Best Quality", TargetPriority.BEST_QUALITY);
+        m_priorityChooser.addOption("Front Facing", TargetPriority.FRONT_FACING);
+        m_priorityChooser.addOption("Alliance Only", TargetPriority.ALLIANCE_ONLY);
+
+        SmartDashboard.putData("Vision/Target Priority", m_priorityChooser);
     }
 
     @Override
     public void periodic() {
+        // Update priority mode from SmartDashboard chooser
+        TargetPriority selectedPriority = m_priorityChooser.getSelected();
+        if (selectedPriority != null && selectedPriority != m_targetPriority) {
+            m_targetPriority = selectedPriority;
+        }
+
         // Get current robot pose for simulation and telemetry
         var drivetrainState = m_drivetrain.getState();
         if (drivetrainState == null || drivetrainState.Pose == null) {
@@ -143,6 +165,7 @@ public class VisionSubsystem extends SubsystemBase {
         Logger.recordOutput("Vision/HasTarget", hasTarget());
         Logger.recordOutput("Vision/TargetID", m_targetTagId);
         Logger.recordOutput("Vision/CameraCount", m_cameras.size());
+        Logger.recordOutput("Vision/PriorityMode", m_targetPriority.getDisplayName());
 
         // Log target pose if available
         getTargetPose()
@@ -163,18 +186,36 @@ public class VisionSubsystem extends SubsystemBase {
         PhotonTrackedTarget bestTarget = null;
         double bestScore = Double.MAX_VALUE;
 
+        // Get robot pose for angle calculations
+        var drivetrainState = m_drivetrain.getState();
+        Pose2d robotPose = (drivetrainState != null && drivetrainState.Pose != null)
+            ? drivetrainState.Pose
+            : new Pose2d();
+
         // Find the best visible target across all cameras
         for (var camera : m_cameras) {
             Optional<PhotonTrackedTarget> target = camera.getBestTarget();
             if (target.isPresent()) {
                 PhotonTrackedTarget currentTarget = target.get();
 
-                // Score based on distance and ambiguity
+                // Check alliance filter if ALLIANCE_ONLY mode
+                if (m_targetPriority == TargetPriority.ALLIANCE_ONLY) {
+                    if (!isAllianceTag(currentTarget.getFiducialId())) {
+                        continue; // Skip non-alliance tags
+                    }
+                }
+
+                // Calculate scoring factors
                 double distance = currentTarget.getBestCameraToTarget().getTranslation().getNorm();
                 double ambiguity = currentTarget.getPoseAmbiguity();
 
-                // Lower score is better (closer + less ambiguous = better)
-                double score = distance + (ambiguity * 5.0);
+                // Calculate angle to target (how far off-center)
+                double angle = calculateAngleToTarget(currentTarget, robotPose);
+
+                // Score using configurable weights (lower is better)
+                double score = (distance * m_targetPriority.getDistanceWeight())
+                             + (ambiguity * m_targetPriority.getAmbiguityWeight())
+                             + (angle * m_targetPriority.getAngleWeight());
 
                 if (bestTarget == null || score < bestScore) {
                     bestTarget = currentTarget;
@@ -194,6 +235,48 @@ public class VisionSubsystem extends SubsystemBase {
                 m_targetTagId = -1;
             }
         }
+    }
+
+    /** Check if a tag belongs to our alliance */
+    private boolean isAllianceTag(int tagId) {
+        var alliance = edu.wpi.first.wpilibj.DriverStation.getAlliance();
+        if (alliance.isEmpty()) {
+            return true; // If unknown, allow all tags
+        }
+
+        // Alliance tags: Blue = 6,7,8 | Red = 3,4,5 (adjust for your field layout)
+        if (alliance.get() == edu.wpi.first.wpilibj.DriverStation.Alliance.Blue) {
+            return tagId >= 6 && tagId <= 8;
+        } else {
+            return tagId >= 3 && tagId <= 5;
+        }
+    }
+
+    /** Calculate angle offset from robot heading to target (in radians) */
+    private double calculateAngleToTarget(PhotonTrackedTarget target, Pose2d robotPose) {
+        // Get tag pose from field layout
+        Optional<Pose2d> tagPose = Constants.tagLayout
+            .getTagPose(target.getFiducialId())
+            .map(pose3d -> pose3d.toPose2d());
+
+        if (tagPose.isEmpty()) {
+            return 0.0;
+        }
+
+        // Calculate angle from robot to tag
+        double deltaX = tagPose.get().getX() - robotPose.getX();
+        double deltaY = tagPose.get().getY() - robotPose.getY();
+        Rotation2d angleToTag = new Rotation2d(deltaX, deltaY);
+
+        // Calculate difference from robot heading
+        double angleDifference = Math.abs(angleToTag.minus(robotPose.getRotation()).getRadians());
+
+        // Normalize to 0-π range
+        if (angleDifference > Math.PI) {
+            angleDifference = 2 * Math.PI - angleDifference;
+        }
+
+        return angleDifference;
     }
 
     /** Updates telemetry data for SmartDashboard and AdvantageScope. */
@@ -375,5 +458,24 @@ public class VisionSubsystem extends SubsystemBase {
     /** For simulation: gets the vision system simulator. */
     public VisionSystemSim getVisionSim() {
         return m_visionSim;
+    }
+
+    /**
+     * Sets the target priority mode.
+     *
+     * @param priority The priority mode to use for target selection
+     */
+    public void setTargetPriority(TargetPriority priority) {
+        m_targetPriority = priority;
+        System.out.println("[Vision] Target priority changed to: " + priority.getDisplayName());
+    }
+
+    /**
+     * Gets the current target priority mode.
+     *
+     * @return Current priority mode
+     */
+    public TargetPriority getTargetPriority() {
+        return m_targetPriority;
     }
 }
