@@ -129,10 +129,12 @@ public class VisionSubsystem extends SubsystemBase {
 
         // Get current robot pose for simulation and telemetry
         var drivetrainState = m_drivetrain.getState();
-        if (drivetrainState == null || drivetrainState.Pose == null) {
-            return; // Skip this cycle if drivetrain state is not ready
+        Pose2d currentPose = null;
+        if (drivetrainState != null && drivetrainState.Pose != null) {
+            currentPose = drivetrainState.Pose;
+        } else {
+            currentPose = new Pose2d(); // Use origin if drivetrain not ready
         }
-        Pose2d currentPose = drivetrainState.Pose;
 
         // Update simulation if running
         if (RobotBase.isSimulation() && m_visionSim != null) {
@@ -230,6 +232,11 @@ public class VisionSubsystem extends SubsystemBase {
 
                 // Calculate scoring factors
                 double distance = currentTarget.getBestCameraToTarget().getTranslation().getNorm();
+
+                // Filter out targets that are too far away
+                if (distance > Constants.VisionConstants.MAX_DETECTION_DISTANCE) {
+                    continue; // Skip targets beyond max detection distance
+                }
                 double ambiguity = currentTarget.getPoseAmbiguity();
 
                 // Calculate angle to target (how far off-center)
@@ -268,11 +275,16 @@ public class VisionSubsystem extends SubsystemBase {
             return true; // If unknown, allow all tags
         }
 
+        // Safe access to alliance
+        edu.wpi.first.wpilibj.DriverStation.Alliance allianceColor = alliance.get();
+
         // Alliance tags: Blue = 6,7,8 | Red = 3,4,5 (adjust for your field layout)
-        if (alliance.get() == edu.wpi.first.wpilibj.DriverStation.Alliance.Blue) {
+        if (allianceColor == edu.wpi.first.wpilibj.DriverStation.Alliance.Blue) {
             return tagId >= 6 && tagId <= 8;
-        } else {
+        } else if (allianceColor == edu.wpi.first.wpilibj.DriverStation.Alliance.Red) {
             return tagId >= 3 && tagId <= 5;
+        } else {
+            return true; // Unknown alliance - allow all
         }
     }
 
@@ -288,9 +300,12 @@ public class VisionSubsystem extends SubsystemBase {
             return 0.0;
         }
 
+        // Safe access to tag pose
+        Pose2d tag = tagPose.get();
+
         // Calculate angle from robot to tag
-        double deltaX = tagPose.get().getX() - robotPose.getX();
-        double deltaY = tagPose.get().getY() - robotPose.getY();
+        double deltaX = tag.getX() - robotPose.getX();
+        double deltaY = tag.getY() - robotPose.getY();
         Rotation2d angleToTag = new Rotation2d(deltaX, deltaY);
 
         // Calculate difference from robot heading
@@ -489,6 +504,50 @@ public class VisionSubsystem extends SubsystemBase {
         double deltaY = target.getY() - robotPose.getY();
 
         return new Rotation2d(deltaX, deltaY);
+    }
+
+    /**
+     * Checks if the current target is within range for auto-aim operations.
+     *
+     * @return true if target exists and is within auto-aim range
+     */
+    public boolean isTargetInAutoAimRange() {
+        if (m_targetTagId == -1) {
+            return false;
+        }
+
+        // Find the current target across all cameras
+        for (var camera : m_cameras) {
+            Optional<PhotonTrackedTarget> target = camera.getBestTarget();
+            if (target.isPresent() && target.get().getFiducialId() == m_targetTagId) {
+                double distance = target.get().getBestCameraToTarget().getTranslation().getNorm();
+                return distance <= Constants.VisionConstants.MAX_AUTO_AIM_DISTANCE;
+            }
+        }
+
+        return false; // Target not currently visible
+    }
+
+    /**
+     * Checks if the current target is within range for auto-align operations.
+     *
+     * @return true if target exists and is within auto-align range
+     */
+    public boolean isTargetInAutoAlignRange() {
+        if (m_targetTagId == -1) {
+            return false;
+        }
+
+        // Find the current target across all cameras
+        for (var camera : m_cameras) {
+            Optional<PhotonTrackedTarget> target = camera.getBestTarget();
+            if (target.isPresent() && target.get().getFiducialId() == m_targetTagId) {
+                double distance = target.get().getBestCameraToTarget().getTranslation().getNorm();
+                return distance <= Constants.VisionConstants.MAX_AUTO_ALIGN_DISTANCE;
+            }
+        }
+
+        return false; // Target not currently visible
     }
 
     /**

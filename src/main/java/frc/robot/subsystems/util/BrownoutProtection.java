@@ -65,9 +65,6 @@ public class BrownoutProtection {
                         String.format(
                                 "BATTERY CRITICAL: %.2fV - CHANGE BATTERY IMMEDIATELY!", voltage),
                         false);
-
-                // Trigger haptic feedback - continuous rumble for critical battery
-                triggerCriticalHaptics();
             } else if (statusChanged && m_currentStatus == BatteryStatus.GOOD) {
                 // Battery recovered - stop rumble
                 stopHaptics();
@@ -79,12 +76,6 @@ public class BrownoutProtection {
                 || m_currentStatus == BatteryStatus.BROWNOUT) {
             maintainCriticalHaptics();
         }
-    }
-
-    /** Triggers haptic feedback for critical battery conditions. */
-    private void triggerCriticalHaptics() {
-        // Start continuous rumble pattern - alternating intensity for attention
-        Haptics.rumble(m_controller, 1.0, 1.0, 0.5).schedule();
     }
 
     /** Maintains haptic feedback during critical battery conditions. */
@@ -174,7 +165,7 @@ public class BrownoutProtection {
                 colorCode = ANSI_YELLOW;
                 statusText =
                         String.format(
-                                "%sBattery Warning: %.2fV - Consider changing battery. Speed limited to 90%%%s",
+                                "%sBattery Warning: %.2fV - Consider changing battery soon%s",
                                 colorCode, voltage, ANSI_RESET);
                 System.out.println(statusText);
                 break;

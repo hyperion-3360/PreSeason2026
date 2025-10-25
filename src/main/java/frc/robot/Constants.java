@@ -96,6 +96,14 @@ public final class Constants {
         // Target tracking
         public static final double TARGET_LOCK_TIMEOUT = 1.0; // seconds
 
+        // Maximum detection distance for AprilTags
+        public static final double MAX_DETECTION_DISTANCE =
+                5.0; // meters (ignore tags farther than this)
+        public static final double MAX_AUTO_AIM_DISTANCE =
+                6.0; // meters (max distance for auto-aim)
+        public static final double MAX_AUTO_ALIGN_DISTANCE =
+                4.0; // meters (max distance for auto-align)
+
         // Pose estimation standard deviations (lower = more trust)
         public static final double SINGLE_TAG_STD_DEV_X = 4.0;
         public static final double SINGLE_TAG_STD_DEV_Y = 4.0;
@@ -159,6 +167,24 @@ public final class Constants {
         public static final double AUTO_AIM_kD = 0.15;
         public static final double AUTO_AIM_MAX_ANGULAR_VELOCITY = Math.PI; // rad/s
         public static final double AUTO_AIM_TOLERANCE = Units.degreesToRadians(5.0);
+
+        // Adaptive PID - Gains change based on distance to target
+        public static final boolean ENABLE_ADAPTIVE_GAINS = true;
+
+        // Threshold distance for switching gains (meters)
+        public static final double ADAPTIVE_DISTANCE_THRESHOLD = 0.5; // Switch at 0.5m
+
+        // FAR gains (when distance > threshold) - Aggressive for speed
+        public static final double kP_TRANSLATION_FAR = 4.0; // Lower P (faster, less precise)
+        public static final double kD_TRANSLATION_FAR = 0.2; // Lower D (less damping)
+        public static final double kP_ROTATION_FAR = 5.0;
+        public static final double kD_ROTATION_FAR = 0.3;
+
+        // CLOSE gains (when distance < threshold) - Precise for accuracy
+        public static final double kP_TRANSLATION_CLOSE = 8.0; // Higher P (slower, more precise)
+        public static final double kD_TRANSLATION_CLOSE = 0.6; // Higher D (more damping)
+        public static final double kP_ROTATION_CLOSE = 10.0;
+        public static final double kD_ROTATION_CLOSE = 0.8;
     }
 
     /**
