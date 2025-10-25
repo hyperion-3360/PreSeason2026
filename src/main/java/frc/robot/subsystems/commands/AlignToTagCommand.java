@@ -6,12 +6,11 @@ import edu.wpi.first.math.controller.ProfiledPIDController;
 import edu.wpi.first.math.filter.SlewRateLimiter;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.trajectory.TrapezoidProfile;
-import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import frc.robot.Constants;
 import frc.robot.subsystems.swerve.CommandSwerveDrivetrain;
 import frc.robot.subsystems.vision.VisionSubsystem;
+import java.util.Optional;
 
 /**
  * Command to automatically align the robot with an AprilTag at a specified distance. Supports two
@@ -22,12 +21,8 @@ public class AlignToTagCommand extends Command {
     private final CommandSwerveDrivetrain m_drivetrain;
     private final VisionSubsystem m_vision;
     private final double m_targetDistance;
-
-    // Motion profile chooser
-    private static final SendableChooser<Constants.AutoAlignConstants.MotionProfileType>
-            s_profileChooser = new SendableChooser<>();
-    private static boolean s_chooserInitialized = false;
-    private static Constants.AutoAlignConstants.MotionProfileType s_lastProfileType = null;
+    private final java.util.function.Supplier<Constants.AutoAlignConstants.MotionProfileType>
+            m_profileSupplier;
 
     // Trapezoidal PID controllers
     private final ProfiledPIDController m_xController;
@@ -45,6 +40,7 @@ public class AlignToTagCommand extends Command {
     // Target pose
     private Pose2d m_targetPose;
     private boolean m_hasValidTarget;
+    private boolean m_alignmentStarted;
 
     // Throttle console output to reduce spam
     private double m_lastPrintTime;
@@ -58,24 +54,18 @@ public class AlignToTagCommand extends Command {
      * @param drivetrain The swerve drivetrain
      * @param vision The vision subsystem
      * @param targetDistanceMeters Distance to maintain from the tag (in meters)
+     * @param profileSupplier Supplier for the motion profile type
      */
     public AlignToTagCommand(
             CommandSwerveDrivetrain drivetrain,
             VisionSubsystem vision,
-            double targetDistanceMeters) {
+            double targetDistanceMeters,
+            java.util.function.Supplier<Constants.AutoAlignConstants.MotionProfileType>
+                    profileSupplier) {
         m_drivetrain = drivetrain;
         m_vision = vision;
         m_targetDistance = targetDistanceMeters;
-
-        // Initialize chooser once
-        if (!s_chooserInitialized) {
-            s_profileChooser.setDefaultOption(
-                    "Trapezoidal", Constants.AutoAlignConstants.MotionProfileType.TRAPEZOIDAL);
-            s_profileChooser.addOption(
-                    "S-Curve", Constants.AutoAlignConstants.MotionProfileType.EXPONENTIAL);
-            SmartDashboard.putData("AutoAlign/Motion Profile", s_profileChooser);
-            s_chooserInitialized = true;
-        }
+        m_profileSupplier = profileSupplier;
 
         // Configure Trapezoidal PID controllers
         m_xController =
@@ -120,8 +110,22 @@ public class AlignToTagCommand extends Command {
 
     @Override
     public void initialize() {
+        // Reset alignment flag
+        m_alignmentStarted = false;
+
         // Lock the target to prevent switching during alignment
         m_vision.lockTarget();
+
+        // Check if target is within auto-align range
+        if (!m_vision.isTargetInAutoAlignRange()) {
+            System.out.println(
+                    "[AlignToTag] Target beyond max auto-align distance ("
+                            + Constants.VisionConstants.MAX_AUTO_ALIGN_DISTANCE
+                            + "m)!");
+            m_hasValidTarget = false;
+            m_vision.unlockTarget();
+            return;
+        }
 
         // Get the target pose from vision
         var alignmentPose = m_vision.getAlignmentPose(m_targetDistance);
@@ -148,21 +152,24 @@ public class AlignToTagCommand extends Command {
 
         Pose2d currentPose = drivetrainState.Pose;
 
+        // Get target pose with null safety
+        Optional<Pose2d> targetPoseOpt = m_vision.getTargetPose();
+        if (targetPoseOpt.isEmpty()) {
+            System.err.println("[AlignToTag] Warning: Target lost during initialization!");
+            m_hasValidTarget = false;
+            m_vision.unlockTarget();
+            return;
+        }
+        Pose2d targetPose = targetPoseOpt.get();
+
         // Calculate current distance to tag
         double currentDistanceToTag =
-                currentPose
-                        .getTranslation()
-                        .getDistance(m_vision.getTargetPose().get().getTranslation());
+                currentPose.getTranslation().getDistance(targetPose.getTranslation());
         double targetDistanceToTag =
-                m_targetPose
-                        .getTranslation()
-                        .getDistance(m_vision.getTargetPose().get().getTranslation());
+                m_targetPose.getTranslation().getDistance(targetPose.getTranslation());
 
         // Get selected motion profile type
-        Constants.AutoAlignConstants.MotionProfileType profileType = s_profileChooser.getSelected();
-        if (profileType == null) {
-            profileType = Constants.AutoAlignConstants.DEFAULT_MOTION_PROFILE;
-        }
+        Constants.AutoAlignConstants.MotionProfileType profileType = m_profileSupplier.get();
 
         // Reset PID controllers
         m_xController.reset(currentPose.getX());
@@ -203,7 +210,7 @@ public class AlignToTagCommand extends Command {
                         profileType.getDisplayName(),
                         currentPose,
                         m_targetPose,
-                        m_vision.getTargetPose().get(),
+                        targetPose,
                         currentDistanceToTag,
                         targetDistanceToTag,
                         m_targetDistance,
@@ -212,6 +219,9 @@ public class AlignToTagCommand extends Command {
                                 + Constants.AutoAlignConstants.ROBOT_CENTER_TO_FRONT_BUMPER,
                         currentDistanceToTag > targetDistanceToTag ? "move forward" : "BACK UP",
                         Math.abs(currentDistanceToTag - targetDistanceToTag)));
+
+        // Mark that alignment has successfully started
+        m_alignmentStarted = true;
     }
 
     @Override
@@ -248,22 +258,7 @@ public class AlignToTagCommand extends Command {
         }
 
         // Get selected motion profile type
-        Constants.AutoAlignConstants.MotionProfileType profileType = s_profileChooser.getSelected();
-        if (profileType == null) {
-            profileType = Constants.AutoAlignConstants.DEFAULT_MOTION_PROFILE;
-        }
-
-        // Detect and log profile changes
-        if (s_lastProfileType != profileType) {
-            System.out.println(
-                    String.format(
-                            "[AlignToTag] ⚙️  Motion profile changed: %s → %s",
-                            s_lastProfileType == null
-                                    ? "INITIAL"
-                                    : s_lastProfileType.getDisplayName(),
-                            profileType.getDisplayName()));
-            s_lastProfileType = profileType;
-        }
+        Constants.AutoAlignConstants.MotionProfileType profileType = m_profileSupplier.get();
 
         // Adaptive PID gains based on distance to target
         if (Constants.AutoAlignConstants.ENABLE_ADAPTIVE_GAINS) {
@@ -274,7 +269,7 @@ public class AlignToTagCommand extends Command {
             if (isClose != m_lastWasCloseMode) {
                 System.out.println(
                         String.format(
-                                "[AlignToTag] 🎯 Adaptive gains: %s mode (distance: %.2fm)",
+                                "[AlignToTag] Adaptive gains: %s mode (distance: %.2fm)",
                                 isClose ? "CLOSE" : "FAR", distanceToTarget));
                 m_lastWasCloseMode = isClose;
             }
@@ -329,6 +324,12 @@ public class AlignToTagCommand extends Command {
         // Stop the robot
         m_drivetrain.setControl(new SwerveRequest.SwerveDriveBrake());
 
+        // Only print completion message if alignment actually started
+        if (!m_alignmentStarted) {
+            // Alignment never started (target too far, no target, etc.) - no message needed
+            return;
+        }
+
         if (interrupted) {
             System.out.println("[AlignToTag] Alignment interrupted (target unlocked)");
         } else {
@@ -342,10 +343,10 @@ public class AlignToTagCommand extends Command {
                                 .getDistance(m_targetPose.getTranslation());
                 System.out.println(
                         String.format(
-                                "[AlignToTag] Alignment complete! Error: %.2fm (target bumper distance: %.2fm) (target unlocked)",
+                                "[AlignToTag] Alignment complete! Error: %.2fm (target bumper distance: %.2fm)",
                                 alignmentError, m_targetDistance));
             } else {
-                System.out.println("[AlignToTag] Alignment complete! (target unlocked)");
+                System.out.println("[AlignToTag] Alignment complete!");
             }
         }
     }
@@ -365,11 +366,18 @@ public class AlignToTagCommand extends Command {
      *
      * @param drivetrain The swerve drivetrain
      * @param vision The vision subsystem
+     * @param profileSupplier Supplier for the motion profile type
      * @return A new AlignToTagCommand
      */
     public static AlignToTagCommand withDefaultDistance(
-            CommandSwerveDrivetrain drivetrain, VisionSubsystem vision) {
+            CommandSwerveDrivetrain drivetrain,
+            VisionSubsystem vision,
+            java.util.function.Supplier<Constants.AutoAlignConstants.MotionProfileType>
+                    profileSupplier) {
         return new AlignToTagCommand(
-                drivetrain, vision, Constants.AutoAlignConstants.DEFAULT_ALIGN_DISTANCE);
+                drivetrain,
+                vision,
+                Constants.AutoAlignConstants.DEFAULT_ALIGN_DISTANCE,
+                profileSupplier);
     }
 }
