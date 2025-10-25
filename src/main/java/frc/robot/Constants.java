@@ -159,6 +159,24 @@ public final class Constants {
         public static final double AUTO_AIM_kD = 0.15;
         public static final double AUTO_AIM_MAX_ANGULAR_VELOCITY = Math.PI; // rad/s
         public static final double AUTO_AIM_TOLERANCE = Units.degreesToRadians(5.0);
+
+        // Adaptive PID - Gains change based on distance to target
+        public static final boolean ENABLE_ADAPTIVE_GAINS = true;
+
+        // Threshold distance for switching gains (meters)
+        public static final double ADAPTIVE_DISTANCE_THRESHOLD = 0.5; // Switch at 0.5m
+
+        // FAR gains (when distance > threshold) - Aggressive for speed
+        public static final double kP_TRANSLATION_FAR = 4.0; // Lower P (faster, less precise)
+        public static final double kD_TRANSLATION_FAR = 0.2; // Lower D (less damping)
+        public static final double kP_ROTATION_FAR = 5.0;
+        public static final double kD_ROTATION_FAR = 0.3;
+
+        // CLOSE gains (when distance < threshold) - Precise for accuracy
+        public static final double kP_TRANSLATION_CLOSE = 8.0; // Higher P (slower, more precise)
+        public static final double kD_TRANSLATION_CLOSE = 0.6; // Higher D (more damping)
+        public static final double kP_ROTATION_CLOSE = 10.0;
+        public static final double kD_ROTATION_CLOSE = 0.8;
     }
 
     /**

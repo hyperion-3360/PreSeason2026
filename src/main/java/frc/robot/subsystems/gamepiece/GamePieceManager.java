@@ -8,8 +8,6 @@ import org.littletonrobotics.junction.Logger;
 /**
  * Manages the state machine for game piece manipulation. Coordinates between sensors, player
  * inputs, and mechanism states.
- *
- * <p>This is a template/example - adapt to your specific mechanisms!
  */
 public class GamePieceManager extends SubsystemBase {
     // Current state
