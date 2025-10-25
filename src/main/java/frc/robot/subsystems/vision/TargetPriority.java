@@ -31,7 +31,8 @@ public enum TargetPriority {
     private final double ambiguityWeight;
     private final double angleWeight;
 
-    TargetPriority(String displayName, double distanceWeight, double ambiguityWeight, double angleWeight) {
+    TargetPriority(
+            String displayName, double distanceWeight, double ambiguityWeight, double angleWeight) {
         this.displayName = displayName;
         this.distanceWeight = distanceWeight;
         this.ambiguityWeight = ambiguityWeight;

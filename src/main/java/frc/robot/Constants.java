@@ -40,7 +40,6 @@ public final class Constants {
         public static final double JOYSTICK_EXPONENTIAL_FACTOR = 0.4;
 
         // Battery voltage thresholds for brownout protection
-        // NOTE: These are tuned for competition - battery will drop during match!
         // Typical voltages: Start=12.5V, Mid-match=11.5V, End=10.5-11.5V
         public static final double BATTERY_NOMINAL_VOLTAGE = 12.0; // Fully charged battery voltage
         public static final double BATTERY_WARNING_VOLTAGE =
@@ -78,8 +77,7 @@ public final class Constants {
         // Camera configuration
         public static final String LIMELIGHT_NAME = "lml3";
 
-        // Camera mounting (adjust these to match your robot!)
-        // IMPORTANT: Measure these values carefully!
+        // Camera mounting
         // - X: Positive = forward, Negative = backward from robot center
         // - Y: Positive = left, Negative = right from robot center
         // - Z: Height above ground
@@ -110,12 +108,12 @@ public final class Constants {
 
     /** Auto-Align to AprilTag Constants */
     public static final class AutoAlignConstants {
-        // Robot dimensions (adjust to your robot!)
+        // Robot dimensions
         public static final double ROBOT_CENTER_TO_FRONT_BUMPER =
                 Units.inchesToMeters(16.0); // Distance from robot center to front bumper edge
 
         // Default alignment distance (from FRONT BUMPER to tag)
-        public static final double DEFAULT_ALIGN_DISTANCE = 1.0; // meters from bumper to tag
+        public static final double DEFAULT_ALIGN_DISTANCE = 2.2; // meters from bumper to tag
 
         // Position and angle tolerances (tighter for better precision)
         public static final double POSITION_TOLERANCE = 0.02; // 2 cm
@@ -123,28 +121,24 @@ public final class Constants {
 
         // Translation PID (X and Y movement) - tuned for precision
         public static final double kP_TRANSLATION = 6.0;
-        public static final double kI_TRANSLATION =
-                0.1; // Small I term to eliminate steady-state error
-        public static final double kD_TRANSLATION = 0.4; // Increased from 0.25 for damping
-        public static final double MAX_VELOCITY_TRANSLATION =
-                6.0; // Reduced from 8.0 for smoother approach
-        public static final double MAX_ACCELERATION_TRANSLATION =
-                8.0; // Reduced from 10.0 for smoothness
+        public static final double kI_TRANSLATION = 0.1;
+        public static final double kD_TRANSLATION = 0.4;
+        public static final double MAX_VELOCITY_TRANSLATION = 6.0;
+        public static final double MAX_ACCELERATION_TRANSLATION = 8.0;
 
         // Rotation PID (Theta) - tuned for precision
-        public static final double kP_ROTATION = 8.0; // Increased from 7.0 for tighter tracking
-        public static final double kI_ROTATION = 0.05; // Small I term for final alignment
-        public static final double kD_ROTATION = 0.5; // Increased from 0.3 to reduce oscillation
-        public static final double MAX_VELOCITY_ROTATION =
-                2.0 * Math.PI; // Reduced from 2.5π for smoother rotation
-        public static final double MAX_ACCELERATION_ROTATION = 4.0 * Math.PI; // Reduced from 5.0π
+        public static final double kP_ROTATION = 8.0;
+        public static final double kI_ROTATION = 0.05;
+        public static final double kD_ROTATION = 0.5;
+        public static final double MAX_VELOCITY_ROTATION = 2.0 * Math.PI;
+        public static final double MAX_ACCELERATION_ROTATION = 4.0 * Math.PI;
 
         // Auto-aim while driving (driver controls translation, robot controls rotation)
-        public static final double AUTO_AIM_kP = 4.0; // Rotation P gain for aim assist
-        public static final double AUTO_AIM_kI = 0.0; // Rotation I gain
-        public static final double AUTO_AIM_kD = 0.15; // Rotation D gain for damping
+        public static final double AUTO_AIM_kP = 4.0;
+        public static final double AUTO_AIM_kI = 0.0;
+        public static final double AUTO_AIM_kD = 0.15;
         public static final double AUTO_AIM_MAX_ANGULAR_VELOCITY = Math.PI; // rad/s
-        public static final double AUTO_AIM_TOLERANCE = Units.degreesToRadians(5.0); // 5 degrees
+        public static final double AUTO_AIM_TOLERANCE = Units.degreesToRadians(5.0);
     }
 
     /**
@@ -156,9 +150,9 @@ public final class Constants {
     public static final class MechanismLimits {
         /** Example: Pivot/Arm limits (in degrees) */
         public static final class ArmLimits {
-            public static final double MIN_ANGLE = -5.0; // degrees - slightly below horizontal
-            public static final double MAX_ANGLE = 110.0; // degrees - straight up
-            public static final double WARNING_MARGIN = 10.0; // degrees - warn 10° from limits
+            public static final double MIN_ANGLE = -5.0;
+            public static final double MAX_ANGLE = 110.0;
+            public static final double WARNING_MARGIN = 10.0;
         }
 
         /** Example: Elevator/Linear mechanism limits (in meters) */
