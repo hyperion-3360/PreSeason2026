@@ -96,6 +96,14 @@ public final class Constants {
         // Target tracking
         public static final double TARGET_LOCK_TIMEOUT = 1.0; // seconds
 
+        // Maximum detection distance for AprilTags
+        public static final double MAX_DETECTION_DISTANCE =
+                5.0; // meters (ignore tags farther than this)
+        public static final double MAX_AUTO_AIM_DISTANCE =
+                6.0; // meters (max distance for auto-aim)
+        public static final double MAX_AUTO_ALIGN_DISTANCE =
+                4.0; // meters (max distance for auto-align)
+
         // Pose estimation standard deviations (lower = more trust)
         public static final double SINGLE_TAG_STD_DEV_X = 4.0;
         public static final double SINGLE_TAG_STD_DEV_Y = 4.0;

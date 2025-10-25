@@ -9,9 +9,14 @@ public final class SCurveLimiter {
     private final double vmax, amax, jmax;
     private double lastTs = Double.NaN;
 
-    // guardrails for dt
+    // Guardrails for dt
     private static final double DT_MIN = 0.002; // 2 ms
     private static final double DT_MAX = 0.100; // 100 ms
+
+    // Anti-windup and snap-to-zero thresholds
+    private static final double ANTI_WINDUP_THRESHOLD = 0.999; // 99.9% of vmax
+    private static final double SNAP_TO_ZERO_INPUT_EPSILON = 1e-3; // Input deadband (0.1%)
+    private static final double SNAP_TO_ZERO_OUTPUT_EPSILON = 2e-3; // Output deadband (0.2%)
 
     public SCurveLimiter(double vmax, double amax, double jmax) {
         this.vmax = vmax; // joystick units / s (use 1.0 for full scale)
@@ -51,14 +56,15 @@ public final class SCurveLimiter {
         v += a * dt;
 
         // Anti-windup at saturation: if pegged and still pushing, stop accelerating
-        if ((v >= 0.999 * vmax && a > 0) || (v <= -0.999 * vmax && a < 0)) {
+        if ((v >= ANTI_WINDUP_THRESHOLD * vmax && a > 0)
+                || (v <= -ANTI_WINDUP_THRESHOLD * vmax && a < 0)) {
             v = MathUtil.clamp(v, -vmax, vmax);
             a = 0;
         }
 
         // 5) Snap-to-zero to kill micro-oscillations (scale with limits)
-        double epsIn = 1e-3 * vmax;
-        double epsOut = 2e-3 * vmax;
+        double epsIn = SNAP_TO_ZERO_INPUT_EPSILON * vmax;
+        double epsOut = SNAP_TO_ZERO_OUTPUT_EPSILON * vmax;
         if (Math.abs(vCmd) < epsIn && Math.abs(v) < epsOut) {
             v = 0;
             a = 0;

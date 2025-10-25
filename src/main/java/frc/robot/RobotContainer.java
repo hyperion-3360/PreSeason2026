@@ -8,6 +8,8 @@ import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.wpilibj.RobotBase;
+import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
@@ -71,10 +73,32 @@ public class RobotContainer {
                     Constants.AutoAlignConstants.AUTO_AIM_kI,
                     Constants.AutoAlignConstants.AUTO_AIM_kD);
 
+    // Motion profile chooser for alignment
+    private final SendableChooser<Constants.AutoAlignConstants.MotionProfileType>
+            alignmentProfileChooser = new SendableChooser<>();
+
     {
         // Configure auto-aim PID
         autoAimPID.enableContinuousInput(-Math.PI, Math.PI);
         autoAimPID.setTolerance(Constants.AutoAlignConstants.AUTO_AIM_TOLERANCE);
+
+        // Configure alignment profile chooser
+        alignmentProfileChooser.setDefaultOption(
+                "Trapezoidal", Constants.AutoAlignConstants.MotionProfileType.TRAPEZOIDAL);
+        alignmentProfileChooser.addOption(
+                "S-Curve", Constants.AutoAlignConstants.MotionProfileType.EXPONENTIAL);
+        SmartDashboard.putData("AutoAlign/Motion Profile", alignmentProfileChooser);
+    }
+
+    /**
+     * Gets the selected alignment motion profile.
+     *
+     * @return The selected motion profile type
+     */
+    public Constants.AutoAlignConstants.MotionProfileType getAlignmentProfile() {
+        Constants.AutoAlignConstants.MotionProfileType selected =
+                alignmentProfileChooser.getSelected();
+        return selected != null ? selected : Constants.AutoAlignConstants.DEFAULT_MOTION_PROFILE;
     }
 
     /* Setting up bindings for necessary control of the swerve drive platform */
@@ -172,13 +196,10 @@ public class RobotContainer {
                                 rCmd = rScaled * MaxAngularRate;
                             }
 
-                            // Apply brownout protection to translation
-                            double speedScale = brownoutProtection.getSpeedScaleFactor();
-                            xCmd *= speedScale;
-                            yCmd *= speedScale;
-
                             // Auto-aim mode: robot controls rotation, driver controls translation
-                            if (autoAimEnabled && vision.hasTarget()) {
+                            if (autoAimEnabled
+                                    && vision.hasTarget()
+                                    && vision.isTargetInAutoAimRange()) {
                                 Rotation2d currentHeading =
                                         drivetrain.getState().Pose.getRotation();
                                 Rotation2d targetAngle = vision.getAngleToTarget();
@@ -192,9 +213,13 @@ public class RobotContainer {
                                                         .AUTO_AIM_MAX_ANGULAR_VELOCITY,
                                                 Constants.AutoAlignConstants
                                                         .AUTO_AIM_MAX_ANGULAR_VELOCITY);
-                            } else {
-                                rCmd *= speedScale;
                             }
+
+                            // Apply brownout protection to all commands (translation and rotation)
+                            double speedScale = brownoutProtection.getSpeedScaleFactor();
+                            xCmd *= speedScale;
+                            yCmd *= speedScale;
+                            rCmd *= speedScale;
 
                             return drive.withVelocityX(xCmd)
                                     .withVelocityY(yCmd)
@@ -216,7 +241,9 @@ public class RobotContainer {
         // ========== VISION ALIGNMENT ==========
         // Right bumper: Align to AprilTag at 1 meter distance
         joystick.rightBumper()
-                .whileTrue(AlignToTagCommand.withDefaultDistance(drivetrain, vision))
+                .whileTrue(
+                        AlignToTagCommand.withDefaultDistance(
+                                drivetrain, vision, this::getAlignmentProfile))
                 .onFalse(
                         Commands.runOnce(
                                 () -> System.out.println("[Align] Button released"), drivetrain));
@@ -224,15 +251,6 @@ public class RobotContainer {
         // ========== AUTO-AIM TOGGLE ==========
         // Hold both triggers (L2 + R2) for 3 seconds to toggle auto-aim mode
         var bothTriggersPressed = joystick.leftTrigger().and(joystick.rightTrigger());
-
-        // Debug: print when triggers are pressed and give haptic feedback
-        bothTriggersPressed.onTrue(
-                Commands.runOnce(
-                        () -> {
-                            System.out.println(
-                                    "[Auto-Aim] Both triggers pressed - holding for 3 seconds...");
-                            Haptics.buzzShort(joystick).schedule();
-                        }));
 
         // Toggle after 3 second hold
         bothTriggersPressed
@@ -243,10 +261,13 @@ public class RobotContainer {
                                     autoAimEnabled = !autoAimEnabled;
                                     if (autoAimEnabled) {
                                         autoAimPID.reset();
+                                        vision.lockTarget();
                                         System.out.println(
                                                 "[Auto-Aim] ENABLED - Robot will auto-rotate to closest AprilTag");
                                         Haptics.buzzOK(joystick).schedule();
                                     } else {
+                                        autoAimPID.reset();
+                                        vision.unlockTarget();
                                         System.out.println(
                                                 "[Auto-Aim] DISABLED - Manual rotation control");
                                         Haptics.buzzShort(joystick).schedule();
