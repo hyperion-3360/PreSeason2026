@@ -49,6 +49,9 @@ public class AlignToTagCommand extends Command {
     // Throttle console output to reduce spam
     private double m_lastPrintTime;
 
+    // Track adaptive gain mode
+    private boolean m_lastWasCloseMode = false;
+
     /**
      * Creates a new AlignToTagCommand.
      *
@@ -260,6 +263,39 @@ public class AlignToTagCommand extends Command {
                                     : s_lastProfileType.getDisplayName(),
                             profileType.getDisplayName()));
             s_lastProfileType = profileType;
+        }
+
+        // Adaptive PID gains based on distance to target
+        if (Constants.AutoAlignConstants.ENABLE_ADAPTIVE_GAINS) {
+            boolean isClose =
+                    distanceToTarget < Constants.AutoAlignConstants.ADAPTIVE_DISTANCE_THRESHOLD;
+
+            // Log when switching between close/far modes
+            if (isClose != m_lastWasCloseMode) {
+                System.out.println(
+                        String.format(
+                                "[AlignToTag] 🎯 Adaptive gains: %s mode (distance: %.2fm)",
+                                isClose ? "CLOSE" : "FAR", distanceToTarget));
+                m_lastWasCloseMode = isClose;
+            }
+
+            if (isClose) {
+                // Close to target - use precise gains
+                m_xController.setP(Constants.AutoAlignConstants.kP_TRANSLATION_CLOSE);
+                m_xController.setD(Constants.AutoAlignConstants.kD_TRANSLATION_CLOSE);
+                m_yController.setP(Constants.AutoAlignConstants.kP_TRANSLATION_CLOSE);
+                m_yController.setD(Constants.AutoAlignConstants.kD_TRANSLATION_CLOSE);
+                m_thetaController.setP(Constants.AutoAlignConstants.kP_ROTATION_CLOSE);
+                m_thetaController.setD(Constants.AutoAlignConstants.kD_ROTATION_CLOSE);
+            } else {
+                // Far from target - use aggressive gains
+                m_xController.setP(Constants.AutoAlignConstants.kP_TRANSLATION_FAR);
+                m_xController.setD(Constants.AutoAlignConstants.kD_TRANSLATION_FAR);
+                m_yController.setP(Constants.AutoAlignConstants.kP_TRANSLATION_FAR);
+                m_yController.setD(Constants.AutoAlignConstants.kD_TRANSLATION_FAR);
+                m_thetaController.setP(Constants.AutoAlignConstants.kP_ROTATION_FAR);
+                m_thetaController.setD(Constants.AutoAlignConstants.kD_ROTATION_FAR);
+            }
         }
 
         // Calculate velocities using PID controllers (always use trapezoidal profiling)
