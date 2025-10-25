@@ -108,15 +108,35 @@ public final class Constants {
 
     /** Auto-Align to AprilTag Constants */
     public static final class AutoAlignConstants {
+        /** Motion profile types for alignment */
+        public enum MotionProfileType {
+            TRAPEZOIDAL("Trapezoidal"),
+            EXPONENTIAL("S-Curve");
+
+            private final String displayName;
+
+            MotionProfileType(String displayName) {
+                this.displayName = displayName;
+            }
+
+            public String getDisplayName() {
+                return displayName;
+            }
+        }
+
+        // Default motion profile type
+        public static final MotionProfileType DEFAULT_MOTION_PROFILE =
+                MotionProfileType.TRAPEZOIDAL;
+
         // Robot dimensions
         public static final double ROBOT_CENTER_TO_FRONT_BUMPER =
                 Units.inchesToMeters(16.0); // Distance from robot center to front bumper edge
 
         // Default alignment distance (from FRONT BUMPER to tag)
-        public static final double DEFAULT_ALIGN_DISTANCE = 2.2; // meters from bumper to tag
+        public static final double DEFAULT_ALIGN_DISTANCE = 1.0; // meters from bumper to tag
 
         // Position and angle tolerances (tighter for better precision)
-        public static final double POSITION_TOLERANCE = 0.02; // 2 cm
+        public static final double POSITION_TOLERANCE = 0.01; // 1 cm
         public static final double ANGLE_TOLERANCE = Units.degreesToRadians(1.0); // 1 degree
 
         // Translation PID (X and Y movement) - tuned for precision
