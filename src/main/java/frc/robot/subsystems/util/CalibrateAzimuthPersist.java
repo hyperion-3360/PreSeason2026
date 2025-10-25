@@ -8,6 +8,7 @@ import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.wpilibj.RobotBase;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
+import frc.robot.RobotConfig;
 
 /**
  * Persists CANcoder MagnetOffset to device FLASH so that the current absolute angle becomes zero.
@@ -19,12 +20,12 @@ import edu.wpi.first.wpilibj2.command.Command;
  */
 public class CalibrateAzimuthPersist extends Command {
 
-    // Real CANcoder IDs from your project (default CAN bus).
+    // CANcoder IDs from RobotConfig - automatically switches with ACTIVE_SWERVE profile
     // If you're on a Canivore, change to: new CANcoder(id, "canivore")
-    private final CANcoder frontLeft = new CANcoder(16); // Front Left
-    private final CANcoder frontRight = new CANcoder(14); // Front Right
-    private final CANcoder backLeft = new CANcoder(13); // Rear  Left
-    private final CANcoder backRight = new CANcoder(15); // Rear  Right
+    private final CANcoder frontLeft = new CANcoder(RobotConfig.flEnc()); // Front Left
+    private final CANcoder frontRight = new CANcoder(RobotConfig.frEnc()); // Front Right
+    private final CANcoder backLeft = new CANcoder(RobotConfig.blEnc()); // Back Left
+    private final CANcoder backRight = new CANcoder(RobotConfig.brEnc()); // Back Right
 
     private boolean done = false;
 
@@ -98,7 +99,7 @@ public class CalibrateAzimuthPersist extends Command {
                 frontLeftReadBack,
                 statusFrontLeft);
         logModule(
-                "fronRight",
+                "frontRight",
                 frontRearAbsNow,
                 frontRightOldOffset,
                 frontRightNewOffset,
@@ -120,13 +121,13 @@ public class CalibrateAzimuthPersist extends Command {
                 statusBackRight);
 
         verifyWritten("frontLeft", frontLeftNewOffset, frontLeftReadBack);
-        verifyWritten("fronRight", frontRightNewOffset, frontRightReadBack);
+        verifyWritten("frontRight", frontRightNewOffset, frontRightReadBack);
         verifyWritten("backLeft", backLeftNewOffset, backLeftReadBack);
         verifyWritten("backRight", backRightNewOffset, backRightReadBack);
 
         // --- 5) Post-write absolute check (sensor output ≈ 0 within 2 LSB; works in Disabled) ---
         verifyCanCoderZero("frontLeft", frontLeft);
-        verifyCanCoderZero("fronRight", frontRight);
+        verifyCanCoderZero("frontRight", frontRight);
         verifyCanCoderZero("backLeft", backLeft);
         verifyCanCoderZero("backRight", backRight);
 

@@ -39,4 +39,9 @@ public final class Haptics {
     public static Command buzzOK(CommandXboxController pad) {
         return rumble(pad, 0.7, 0.7, 0.30);
     }
+
+    /** Very short single buzz. */
+    public static Command buzzShort(CommandXboxController pad) {
+        return rumble(pad, 0.5, 0.5, 0.15);
+    }
 }
