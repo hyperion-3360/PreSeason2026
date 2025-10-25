@@ -92,12 +92,16 @@ public class AlignToTagCommand extends Command {
 
     @Override
     public void initialize() {
+        // Lock the target to prevent switching during alignment
+        m_vision.lockTarget();
+
         // Get the target pose from vision
         var alignmentPose = m_vision.getAlignmentPose(m_targetDistance);
 
         if (alignmentPose.isEmpty()) {
             System.out.println("[AlignToTag] No valid target found!");
             m_hasValidTarget = false;
+            m_vision.unlockTarget(); // Unlock since we're not aligning
             return;
         }
 
@@ -110,10 +114,21 @@ public class AlignToTagCommand extends Command {
             System.err.println(
                     "[AlignToTag] Warning: Drivetrain state or pose is null in initialize!");
             m_hasValidTarget = false;
+            m_vision.unlockTarget(); // Unlock since we're not aligning
             return;
         }
 
         Pose2d currentPose = drivetrainState.Pose;
+
+        // Calculate current distance to tag
+        double currentDistanceToTag =
+                currentPose
+                        .getTranslation()
+                        .getDistance(m_vision.getTargetPose().get().getTranslation());
+        double targetDistanceToTag =
+                m_targetPose
+                        .getTranslation()
+                        .getDistance(m_vision.getTargetPose().get().getTranslation());
 
         // Reset and configure PID controllers with current and target poses
         m_xController.reset(currentPose.getX());
@@ -124,10 +139,26 @@ public class AlignToTagCommand extends Command {
         m_lastPrintTime = 0;
 
         System.out.println(
-                "[AlignToTag] Starting alignment to tag "
-                        + m_vision.getTargetTagId()
-                        + " at pose: "
-                        + m_targetPose);
+                String.format(
+                        "[AlignToTag] Starting alignment to tag %d\n"
+                                + "  Current robot pose: %s\n"
+                                + "  Target robot pose:  %s\n"
+                                + "  Tag pose: %s\n"
+                                + "  Current distance to tag: %.2fm\n"
+                                + "  Target distance to tag:  %.2fm (should be %.2fm + %.2fm bumper = %.2fm)\n"
+                                + "  Need to %s %.2fm",
+                        m_vision.getTargetTagId(),
+                        currentPose,
+                        m_targetPose,
+                        m_vision.getTargetPose().get(),
+                        currentDistanceToTag,
+                        targetDistanceToTag,
+                        m_targetDistance,
+                        Constants.AutoAlignConstants.ROBOT_CENTER_TO_FRONT_BUMPER,
+                        m_targetDistance
+                                + Constants.AutoAlignConstants.ROBOT_CENTER_TO_FRONT_BUMPER,
+                        currentDistanceToTag > targetDistanceToTag ? "move forward" : "BACK UP",
+                        Math.abs(currentDistanceToTag - targetDistanceToTag)));
     }
 
     @Override
@@ -181,11 +212,14 @@ public class AlignToTagCommand extends Command {
 
     @Override
     public void end(boolean interrupted) {
+        // Unlock the target so it can switch again
+        m_vision.unlockTarget();
+
         // Stop the robot
         m_drivetrain.setControl(new SwerveRequest.SwerveDriveBrake());
 
         if (interrupted) {
-            System.out.println("[AlignToTag] Alignment interrupted");
+            System.out.println("[AlignToTag] Alignment interrupted (target unlocked)");
         } else {
             // Calculate final distance - just show alignment error
             var drivetrainState = m_drivetrain.getState();
@@ -197,10 +231,10 @@ public class AlignToTagCommand extends Command {
                                 .getDistance(m_targetPose.getTranslation());
                 System.out.println(
                         String.format(
-                                "[AlignToTag] Alignment complete! Error: %.2fm (target bumper distance: %.2fm)",
+                                "[AlignToTag] Alignment complete! Error: %.2fm (target bumper distance: %.2fm) (target unlocked)",
                                 alignmentError, m_targetDistance));
             } else {
-                System.out.println("[AlignToTag] Alignment complete!");
+                System.out.println("[AlignToTag] Alignment complete! (target unlocked)");
             }
         }
     }

@@ -33,6 +33,7 @@ public class VisionSubsystem extends SubsystemBase {
     private int m_targetTagId = -1; // -1 means no target selected
     private double m_lastTargetSeenTime = edu.wpi.first.wpilibj.Timer.getFPGATimestamp();
     private TargetPriority m_targetPriority = TargetPriority.BALANCED;
+    private boolean m_targetLocked = false; // Prevents target switching during alignment
 
     // Priority chooser for SmartDashboard
     private final SendableChooser<TargetPriority> m_priorityChooser = new SendableChooser<>();
@@ -107,8 +108,8 @@ public class VisionSubsystem extends SubsystemBase {
         SmartDashboard.putData("Vision/Field", m_visionField);
 
         // Setup priority chooser
-        m_priorityChooser.setDefaultOption("Balanced", TargetPriority.BALANCED);
-        m_priorityChooser.addOption("Closest", TargetPriority.CLOSEST);
+        m_priorityChooser.setDefaultOption("Closest", TargetPriority.CLOSEST);
+        m_priorityChooser.addOption("Balanced", TargetPriority.BALANCED);
         m_priorityChooser.addOption("Mostly Closest", TargetPriority.MOSTLY_CLOSEST);
         m_priorityChooser.addOption("Mostly Quality", TargetPriority.MOSTLY_QUALITY);
         m_priorityChooser.addOption("Best Quality", TargetPriority.BEST_QUALITY);
@@ -183,14 +184,36 @@ public class VisionSubsystem extends SubsystemBase {
 
     /** Updates which AprilTag we're tracking/locked onto. */
     private void updateTargetTracking() {
+        // If target is locked, don't switch to a different tag
+        if (m_targetLocked && m_targetTagId != -1) {
+            // Just update last seen time if we still see the locked target
+            for (var camera : m_cameras) {
+                Optional<PhotonTrackedTarget> target = camera.getBestTarget();
+                if (target.isPresent() && target.get().getFiducialId() == m_targetTagId) {
+                    m_lastTargetSeenTime = edu.wpi.first.wpilibj.Timer.getFPGATimestamp();
+                    return; // Keep locked target
+                }
+            }
+
+            // If we haven't seen locked target for too long, unlock and search
+            if (edu.wpi.first.wpilibj.Timer.getFPGATimestamp() - m_lastTargetSeenTime
+                    > Constants.VisionConstants.TARGET_LOCK_TIMEOUT) {
+                System.out.println("[Vision] Lost locked target " + m_targetTagId + ", unlocking");
+                m_targetLocked = false;
+                m_targetTagId = -1;
+            }
+            return;
+        }
+
         PhotonTrackedTarget bestTarget = null;
         double bestScore = Double.MAX_VALUE;
 
         // Get robot pose for angle calculations
         var drivetrainState = m_drivetrain.getState();
-        Pose2d robotPose = (drivetrainState != null && drivetrainState.Pose != null)
-            ? drivetrainState.Pose
-            : new Pose2d();
+        Pose2d robotPose =
+                (drivetrainState != null && drivetrainState.Pose != null)
+                        ? drivetrainState.Pose
+                        : new Pose2d();
 
         // Find the best visible target across all cameras
         for (var camera : m_cameras) {
@@ -213,9 +236,10 @@ public class VisionSubsystem extends SubsystemBase {
                 double angle = calculateAngleToTarget(currentTarget, robotPose);
 
                 // Score using configurable weights (lower is better)
-                double score = (distance * m_targetPriority.getDistanceWeight())
-                             + (ambiguity * m_targetPriority.getAmbiguityWeight())
-                             + (angle * m_targetPriority.getAngleWeight());
+                double score =
+                        (distance * m_targetPriority.getDistanceWeight())
+                                + (ambiguity * m_targetPriority.getAmbiguityWeight())
+                                + (angle * m_targetPriority.getAngleWeight());
 
                 if (bestTarget == null || score < bestScore) {
                     bestTarget = currentTarget;
@@ -255,9 +279,10 @@ public class VisionSubsystem extends SubsystemBase {
     /** Calculate angle offset from robot heading to target (in radians) */
     private double calculateAngleToTarget(PhotonTrackedTarget target, Pose2d robotPose) {
         // Get tag pose from field layout
-        Optional<Pose2d> tagPose = Constants.tagLayout
-            .getTagPose(target.getFiducialId())
-            .map(pose3d -> pose3d.toPose2d());
+        Optional<Pose2d> tagPose =
+                Constants.tagLayout
+                        .getTagPose(target.getFiducialId())
+                        .map(pose3d -> pose3d.toPose2d());
 
         if (tagPose.isEmpty()) {
             return 0.0;
@@ -299,6 +324,7 @@ public class VisionSubsystem extends SubsystemBase {
         SmartDashboard.putNumber("Vision/Active Cameras", getActiveCameraCount());
         SmartDashboard.putNumber("Vision/Target Tag ID", m_targetTagId);
         SmartDashboard.putBoolean("Vision/Has Target", hasTarget());
+        SmartDashboard.putBoolean("Vision/Target Locked", m_targetLocked);
 
         // Individual camera data
         for (int i = 0; i < m_cameras.size(); i++) {
@@ -361,6 +387,34 @@ public class VisionSubsystem extends SubsystemBase {
     /** Clears the current target. */
     public void clearTarget() {
         m_targetTagId = -1;
+        m_targetLocked = false;
+    }
+
+    /**
+     * Locks the current target to prevent switching during alignment. Use this when starting an
+     * alignment command to ensure the robot doesn't switch targets if it gets too close or loses
+     * sight temporarily.
+     */
+    public void lockTarget() {
+        if (m_targetTagId != -1) {
+            m_targetLocked = true;
+            System.out.println("[Vision] Target " + m_targetTagId + " locked");
+        }
+    }
+
+    /** Unlocks the current target, allowing automatic target switching again. */
+    public void unlockTarget() {
+        m_targetLocked = false;
+        System.out.println("[Vision] Target unlocked");
+    }
+
+    /**
+     * Checks if target is currently locked.
+     *
+     * @return true if target is locked
+     */
+    public boolean isTargetLocked() {
+        return m_targetLocked;
     }
 
     /**
