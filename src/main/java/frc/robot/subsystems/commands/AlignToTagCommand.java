@@ -3,26 +3,41 @@ package frc.robot.subsystems.commands;
 import com.ctre.phoenix6.swerve.SwerveModule.DriveRequestType;
 import com.ctre.phoenix6.swerve.SwerveRequest;
 import edu.wpi.first.math.controller.ProfiledPIDController;
+import edu.wpi.first.math.filter.SlewRateLimiter;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.trajectory.TrapezoidProfile;
+import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import frc.robot.Constants;
 import frc.robot.subsystems.swerve.CommandSwerveDrivetrain;
 import frc.robot.subsystems.vision.VisionSubsystem;
 
 /**
- * Command to automatically align the robot with an AprilTag at a specified distance. Uses PID
- * control to smoothly drive to the target pose.
+ * Command to automatically align the robot with an AprilTag at a specified distance. Supports two
+ * motion profiling modes: - Trapezoidal: Sharp acceleration/deceleration (fast but can be jerky) -
+ * S-Curve: Smooth acceleration/deceleration (feels more natural, easier on mechanisms)
  */
 public class AlignToTagCommand extends Command {
     private final CommandSwerveDrivetrain m_drivetrain;
     private final VisionSubsystem m_vision;
     private final double m_targetDistance;
 
-    // PID Controllers for driving to pose
+    // Motion profile chooser
+    private static final SendableChooser<Constants.AutoAlignConstants.MotionProfileType>
+            s_profileChooser = new SendableChooser<>();
+    private static boolean s_chooserInitialized = false;
+    private static Constants.AutoAlignConstants.MotionProfileType s_lastProfileType = null;
+
+    // Trapezoidal PID controllers
     private final ProfiledPIDController m_xController;
     private final ProfiledPIDController m_yController;
     private final ProfiledPIDController m_thetaController;
+
+    // S-Curve smoothing filters (applied to trapezoidal output)
+    private SlewRateLimiter m_xSmoother;
+    private SlewRateLimiter m_ySmoother;
+    private SlewRateLimiter m_thetaSmoother;
 
     // Swerve request for field-centric control
     private final SwerveRequest.FieldCentric m_driveRequest;
@@ -49,7 +64,17 @@ public class AlignToTagCommand extends Command {
         m_vision = vision;
         m_targetDistance = targetDistanceMeters;
 
-        // Configure PID controllers - values from Constants.AutoAlignConstants
+        // Initialize chooser once
+        if (!s_chooserInitialized) {
+            s_profileChooser.setDefaultOption(
+                    "Trapezoidal", Constants.AutoAlignConstants.MotionProfileType.TRAPEZOIDAL);
+            s_profileChooser.addOption(
+                    "S-Curve", Constants.AutoAlignConstants.MotionProfileType.EXPONENTIAL);
+            SmartDashboard.putData("AutoAlign/Motion Profile", s_profileChooser);
+            s_chooserInitialized = true;
+        }
+
+        // Configure Trapezoidal PID controllers
         m_xController =
                 new ProfiledPIDController(
                         Constants.AutoAlignConstants.kP_TRANSLATION,
@@ -101,7 +126,7 @@ public class AlignToTagCommand extends Command {
         if (alignmentPose.isEmpty()) {
             System.out.println("[AlignToTag] No valid target found!");
             m_hasValidTarget = false;
-            m_vision.unlockTarget(); // Unlock since we're not aligning
+            m_vision.unlockTarget();
             return;
         }
 
@@ -114,7 +139,7 @@ public class AlignToTagCommand extends Command {
             System.err.println(
                     "[AlignToTag] Warning: Drivetrain state or pose is null in initialize!");
             m_hasValidTarget = false;
-            m_vision.unlockTarget(); // Unlock since we're not aligning
+            m_vision.unlockTarget();
             return;
         }
 
@@ -130,17 +155,41 @@ public class AlignToTagCommand extends Command {
                         .getTranslation()
                         .getDistance(m_vision.getTargetPose().get().getTranslation());
 
-        // Reset and configure PID controllers with current and target poses
+        // Get selected motion profile type
+        Constants.AutoAlignConstants.MotionProfileType profileType = s_profileChooser.getSelected();
+        if (profileType == null) {
+            profileType = Constants.AutoAlignConstants.DEFAULT_MOTION_PROFILE;
+        }
+
+        // Reset PID controllers
         m_xController.reset(currentPose.getX());
         m_yController.reset(currentPose.getY());
         m_thetaController.reset(currentPose.getRotation().getRadians());
+
+        // Initialize S-Curve smoothers if needed
+        if (profileType == Constants.AutoAlignConstants.MotionProfileType.EXPONENTIAL) {
+            // SlewRateLimiter: limits rate of change (jerk limiting)
+            // Lower values = smoother (but slower response)
+            // Units: m/s² for translation, rad/s² for rotation
+            double translationJerkLimit = 12.0; // m/s² per second (jerk)
+            double rotationJerkLimit = 6.0 * Math.PI; // rad/s² per second
+
+            m_xSmoother = new SlewRateLimiter(translationJerkLimit);
+            m_ySmoother = new SlewRateLimiter(translationJerkLimit);
+            m_thetaSmoother = new SlewRateLimiter(rotationJerkLimit);
+
+            // Reset smoothers to current velocity (start smooth)
+            m_xSmoother.reset(0);
+            m_ySmoother.reset(0);
+            m_thetaSmoother.reset(0);
+        }
 
         // Reset print throttle timer
         m_lastPrintTime = 0;
 
         System.out.println(
                 String.format(
-                        "[AlignToTag] Starting alignment to tag %d\n"
+                        "[AlignToTag] Starting alignment to tag %d using %s profiling\n"
                                 + "  Current robot pose: %s\n"
                                 + "  Target robot pose:  %s\n"
                                 + "  Tag pose: %s\n"
@@ -148,6 +197,7 @@ public class AlignToTagCommand extends Command {
                                 + "  Target distance to tag:  %.2fm (should be %.2fm + %.2fm bumper = %.2fm)\n"
                                 + "  Need to %s %.2fm",
                         m_vision.getTargetTagId(),
+                        profileType.getDisplayName(),
                         currentPose,
                         m_targetPose,
                         m_vision.getTargetPose().get(),
@@ -194,13 +244,38 @@ public class AlignToTagCommand extends Command {
             m_lastPrintTime = currentTime;
         }
 
-        // Calculate velocities using PID controllers
+        // Get selected motion profile type
+        Constants.AutoAlignConstants.MotionProfileType profileType = s_profileChooser.getSelected();
+        if (profileType == null) {
+            profileType = Constants.AutoAlignConstants.DEFAULT_MOTION_PROFILE;
+        }
+
+        // Detect and log profile changes
+        if (s_lastProfileType != profileType) {
+            System.out.println(
+                    String.format(
+                            "[AlignToTag] ⚙️  Motion profile changed: %s → %s",
+                            s_lastProfileType == null
+                                    ? "INITIAL"
+                                    : s_lastProfileType.getDisplayName(),
+                            profileType.getDisplayName()));
+            s_lastProfileType = profileType;
+        }
+
+        // Calculate velocities using PID controllers (always use trapezoidal profiling)
         double xVelocity = m_xController.calculate(currentPose.getX(), m_targetPose.getX());
         double yVelocity = m_yController.calculate(currentPose.getY(), m_targetPose.getY());
         double thetaVelocity =
                 m_thetaController.calculate(
                         currentPose.getRotation().getRadians(),
                         m_targetPose.getRotation().getRadians());
+
+        // Apply S-Curve smoothing if enabled
+        if (profileType == Constants.AutoAlignConstants.MotionProfileType.EXPONENTIAL) {
+            xVelocity = m_xSmoother.calculate(xVelocity);
+            yVelocity = m_ySmoother.calculate(yVelocity);
+            thetaVelocity = m_thetaSmoother.calculate(thetaVelocity);
+        }
 
         // Apply the calculated velocities to the drivetrain
         m_drivetrain.setControl(
