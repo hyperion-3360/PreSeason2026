@@ -377,5 +377,3 @@ Here's the complete list of what's being logged:
 - Odometry pose estimates
 
 ---
-
-**You're now set up to collect match data like championship-winning teams!** 🏆

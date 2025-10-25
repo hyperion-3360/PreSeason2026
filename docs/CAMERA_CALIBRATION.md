@@ -2,7 +2,7 @@
 
 ## Why Camera Position Matters
 
-PhotonVision uses your camera's 3D position and angle to calculate where AprilTags are on the field. **Incorrect camera measurements = incorrect robot positioning!**
+PhotonVision uses the camera's 3D position and angle to calculate where AprilTags are on the field. **Incorrect camera measurements = incorrect robot positioning!**
 
 ---
 
@@ -28,7 +28,7 @@ public static final Transform3d ROBOT_TO_LIMELIGHT =
 
 ---
 
-## How to Measure Your Camera
+## How to Measure the Camera
 
 ### Step 1: Find Robot Center
 
