@@ -104,6 +104,13 @@ public class AlignToTagCommand extends Command {
                 new SwerveRequest.FieldCentric()
                         .withDriveRequestType(DriveRequestType.OpenLoopVoltage);
 
+        // Initialize S-Curve smoothers (always create them to avoid null pointer)
+        double translationJerkLimit = 12.0; // m/s² per second (jerk)
+        double rotationJerkLimit = 6.0 * Math.PI; // rad/s² per second
+        m_xSmoother = new SlewRateLimiter(translationJerkLimit);
+        m_ySmoother = new SlewRateLimiter(translationJerkLimit);
+        m_thetaSmoother = new SlewRateLimiter(rotationJerkLimit);
+
         // Require both drivetrain and vision to prevent conflicts
         addRequirements(m_drivetrain, m_vision);
     }
@@ -176,23 +183,10 @@ public class AlignToTagCommand extends Command {
         m_yController.reset(currentPose.getY());
         m_thetaController.reset(currentPose.getRotation().getRadians());
 
-        // Initialize S-Curve smoothers if needed
-        if (profileType == Constants.AutoAlignConstants.MotionProfileType.EXPONENTIAL) {
-            // SlewRateLimiter: limits rate of change (jerk limiting)
-            // Lower values = smoother (but slower response)
-            // Units: m/s² for translation, rad/s² for rotation
-            double translationJerkLimit = 12.0; // m/s² per second (jerk)
-            double rotationJerkLimit = 6.0 * Math.PI; // rad/s² per second
-
-            m_xSmoother = new SlewRateLimiter(translationJerkLimit);
-            m_ySmoother = new SlewRateLimiter(translationJerkLimit);
-            m_thetaSmoother = new SlewRateLimiter(rotationJerkLimit);
-
-            // Reset smoothers to current velocity (start smooth)
-            m_xSmoother.reset(0);
-            m_ySmoother.reset(0);
-            m_thetaSmoother.reset(0);
-        }
+        // Reset S-Curve smoothers to current velocity (start smooth)
+        m_xSmoother.reset(0);
+        m_ySmoother.reset(0);
+        m_thetaSmoother.reset(0);
 
         // Reset print throttle timer
         m_lastPrintTime = 0;
@@ -248,7 +242,7 @@ public class AlignToTagCommand extends Command {
                                 - m_targetPose.getRotation().getRadians());
 
         // Print real-time feedback (throttled to every 0.5 seconds)
-        double currentTime = System.currentTimeMillis() / 1000.0;
+        double currentTime = edu.wpi.first.wpilibj.Timer.getFPGATimestamp();
         if (currentTime - m_lastPrintTime >= 0.5) {
             System.out.println(
                     String.format(
@@ -262,8 +256,19 @@ public class AlignToTagCommand extends Command {
 
         // Adaptive PID gains based on distance to target
         if (Constants.AutoAlignConstants.ENABLE_ADAPTIVE_GAINS) {
-            boolean isClose =
-                    distanceToTarget < Constants.AutoAlignConstants.ADAPTIVE_DISTANCE_THRESHOLD;
+            // Use hysteresis to prevent rapid switching between CLOSE/FAR modes
+            boolean isClose;
+            if (m_lastWasCloseMode) {
+                // Already in CLOSE mode - need to go beyond exit threshold to switch to FAR
+                isClose =
+                        distanceToTarget
+                                < Constants.AutoAlignConstants.ADAPTIVE_THRESHOLD_EXIT_CLOSE;
+            } else {
+                // In FAR mode - enter CLOSE mode at enter threshold
+                isClose =
+                        distanceToTarget
+                                < Constants.AutoAlignConstants.ADAPTIVE_THRESHOLD_ENTER_CLOSE;
+            }
 
             // Log when switching between close/far modes
             if (isClose != m_lastWasCloseMode) {
