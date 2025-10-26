@@ -102,7 +102,7 @@ public final class Constants {
         public static final double MAX_AUTO_AIM_DISTANCE =
                 6.0; // meters (max distance for auto-aim)
         public static final double MAX_AUTO_ALIGN_DISTANCE =
-                4.0; // meters (max distance for auto-align)
+                8.0; // meters (max distance for auto-align)
 
         // Pose estimation standard deviations (lower = more trust)
         public static final double SINGLE_TAG_STD_DEV_X = 4.0;
@@ -146,6 +146,10 @@ public final class Constants {
         // Position and angle tolerances (tighter for better precision)
         public static final double POSITION_TOLERANCE = 0.01; // 1 cm
         public static final double ANGLE_TOLERANCE = Units.degreesToRadians(1.0); // 1 degree
+
+        // Velocity thresholds for completion (prevents overshoot from inertia)
+        public static final double VELOCITY_TOLERANCE = 0.1; // 10 cm/s - must be nearly stopped
+        public static final double ANGULAR_VELOCITY_TOLERANCE = 0.1; // 0.1 rad/s
 
         // Translation PID (X and Y movement) - tuned for precision
         public static final double kP_TRANSLATION = 6.0;
@@ -203,17 +207,25 @@ public final class Constants {
         public static final double PREDICT_SPEED_THRESHOLD =
                 0.3; // Below this, prediction is active
         public static final double STOPPED_SPEED_THRESHOLD = 0.2; // When robot is "stopped"
+        public static final double MIN_ROBOT_SPEED =
+                0.05; // Minimum speed to consider robot moving (avoid noise)
         public static final double MIN_SPEED_FOR_RECORDING =
                 1.0; // Record direction above this speed
 
-        // Intent detection thresholds (joystick 0.0-1.0)
-        public static final double INTENT_THRESHOLD = 0.3; // 30% stick = driver has intent
-        public static final double CLEAR_INTENT_THRESHOLD = 0.5; // 50% stick = strong intent
-        public static final double NEUTRAL_THRESHOLD = 0.1; // Below this = neutral stick
+        // Intent detection thresholds (after exponential scaling with factor 0.4)
+        // These values are calibrated for scaled joystick inputs, not raw values
+        public static final double INTENT_THRESHOLD =
+                0.216; // ~30% stick after scaling = driver has intent
+        public static final double CLEAR_INTENT_THRESHOLD =
+                0.4; // ~50% stick after scaling = strong intent
+        public static final double NEUTRAL_THRESHOLD =
+                0.064; // ~10% stick after scaling = neutral stick
 
-        // Joystick velocity detection (units/second)
+        // Joystick velocity detection (scaled units/second)
+        // Calibrated for exponentially scaled joystick values
+        // Example: moving stick from 20% to 30% raw in one frame (0.02s) = ~4.4 scaled units/sec
         public static final double RAPID_STICK_MOVEMENT =
-                5.0; // How fast stick moves for "direction change"
+                3.5; // How fast stick moves for "direction change" (after scaling)
 
         // Timing
         public static final double ZERO_POINT_DELAY = 0.5; // Seconds before X-pattern activates
