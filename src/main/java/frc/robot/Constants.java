@@ -225,6 +225,25 @@ public final class Constants {
                 2.0; // Don't predict above this speed (too dangerous)
     }
 
+    /** Heading Lock Constants */
+    public static class HeadingLockConstants {
+        // Master enable/disable (toggled by driver with X button hold)
+        public static final boolean DEFAULT_ENABLED = false; // Start disabled
+
+        // PID gains for heading correction
+        public static final double kP = 5.0; // Proportional gain
+        public static final double kI = 0.0; // Integral gain (not needed for heading lock)
+        public static final double kD = 0.2; // Derivative gain (damping)
+
+        // Rotation deadband (joystick 0.0-1.0)
+        public static final double ROTATION_DEADBAND = 0.05; // 5% stick movement to unlock
+
+        // Correction limits
+        public static final double MAX_CORRECTION_RATE =
+                0.3; // Max 30% of max angular velocity for corrections
+        public static final double LOCK_TOLERANCE_DEGREES = 2.0; // ±2° is acceptable error
+    }
+
     /**
      * Software Limits - Example configurations for common mechanisms
      *
