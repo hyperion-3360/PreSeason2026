@@ -20,109 +20,113 @@ import frc.robot.Constants;
 
 public class LEDs extends SubsystemBase {
 
-  public enum Pattern {
-    INTAKE,
-    READY,
-    CLIMBER,
-    SHOOTER,
-    ELEVATOR,
-    IDLE,
-    DEEPCLIMB,
-    RAINBOW
-  }
+    public enum Pattern {
+        INTAKE,
+        READY,
+        CLIMBER,
+        SHOOTER,
+        ELEVATOR,
+        IDLE,
+        DEEPCLIMB,
+        RAINBOW
+    }
 
-  private AddressableLED m_led = new AddressableLED(Constants.LEDConstants.kLEDPWMPort);
-  private AddressableLEDBuffer m_ledBuffer =
-      new AddressableLEDBuffer(Constants.LEDConstants.kLEDLength);
+    private AddressableLED m_led = new AddressableLED(Constants.LEDConstants.kLEDPWMPort);
+    private AddressableLEDBuffer m_ledBuffer =
+            new AddressableLEDBuffer(Constants.LEDConstants.kLEDLength);
 
-  /** This variable should be able to be changed in smart dashboard */
-  // double brightnessPercent = 0.0;
-  private boolean m_isMovingPattern = true;
+    /** This variable should be able to be changed in smart dashboard */
+    // double brightnessPercent = 0.0;
+    private boolean m_isMovingPattern = true;
 
-  private boolean m_isApplied = false;
-  private Pattern m_lastPattern = null;
+    private boolean m_isApplied = false;
+    private Pattern m_lastPattern = null;
 
-  private Distance LED_SPACING = Meters.of(1.0 / Constants.LEDConstants.kLEDLength);
-  private LEDPattern m_currentPattern =
-      LEDPattern.rainbow(255, 255).scrollAtAbsoluteSpeed(MetersPerSecond.of(1), LED_SPACING);
-
-  // Our LED strip has dim red LEDS. This creates a better orange.
-  private Color kTrueOrange = new Color(255, 10, 0);
-
-  public LEDs() {
-    m_led.setLength(m_ledBuffer.getLength());
-    m_led.setColorOrder(ColorOrder.kRGB);
-    m_led.start();
-    m_currentPattern.applyTo(m_ledBuffer);
-  }
-
-  public void SetPattern(Pattern ledPattern) {
-    switch (ledPattern) {
-      case IDLE:
-        m_currentPattern =
-            LEDPattern.gradient(LEDPattern.GradientType.kContinuous, Color.kBlack, kTrueOrange)
-                .scrollAtAbsoluteSpeed(MetersPerSecond.of(1), LED_SPACING);
-        m_isMovingPattern = true;
-        break;
-
-      case INTAKE:
-        m_currentPattern = LEDPattern.solid(Color.kWhite).blink(Second.of(0.5));
-        m_isMovingPattern = true;
-        break;
-
-      case ELEVATOR:
-        m_currentPattern = LEDPattern.solid(Color.kWhite).blink(Second.of(0.5));
-        m_isMovingPattern = true;
-        break;
-
-      case READY:
-        m_currentPattern = LEDPattern.solid(Color.kGreen);
-        m_isMovingPattern = false;
-        break;
-
-      case SHOOTER:
-        m_currentPattern = LEDPattern.solid(Color.kWhite).blink(Second.of(0.5));
-        m_isMovingPattern = true;
-        break;
-
-      case CLIMBER:
-        m_currentPattern = LEDPattern.solid(Color.kRed).blink(Second.of(0.5));
-        m_isMovingPattern = true;
-        break;
-
-      case DEEPCLIMB:
-        m_currentPattern = LEDPattern.solid(Color.kYellow).blink(Second.of(0.5));
-        m_isMovingPattern = true;
-        break;
-
-      case RAINBOW:
-        m_currentPattern =
+    private Distance LED_SPACING = Meters.of(1.0 / Constants.LEDConstants.kLEDLength);
+    private LEDPattern m_currentPattern =
             LEDPattern.rainbow(255, 255).scrollAtAbsoluteSpeed(MetersPerSecond.of(1), LED_SPACING);
-        m_isMovingPattern = true;
 
-        break;
-    }
-    m_lastPattern = ledPattern;
-    m_isApplied = false;
-  }
+    // Our LED strip has dim red LEDS. This creates a better orange.
+    private Color kTrueOrange = new Color(255, 10, 0);
 
-  @Override
-  public void periodic() {
-    if (DriverStation.isDisabled()) {
-      // Only set pattern once when entering disabled mode
-      if (m_lastPattern != Pattern.IDLE) {
-        SetPattern(Pattern.IDLE);
-        m_lastPattern = Pattern.IDLE;
-      }
-      m_currentPattern.applyTo(m_ledBuffer);
-      m_led.setData(m_ledBuffer);
-    } else {
-      // When enabled, track pattern changes
-      if (m_isMovingPattern || !m_isApplied) {
+    public LEDs() {
+        m_led.setLength(m_ledBuffer.getLength());
+        m_led.setColorOrder(ColorOrder.kRGB);
+        m_led.start();
         m_currentPattern.applyTo(m_ledBuffer);
-        m_led.setData(m_ledBuffer);
-        m_isApplied = true;
-      }
     }
-  }
+
+    public void SetPattern(Pattern ledPattern) {
+        switch (ledPattern) {
+            case IDLE:
+                m_currentPattern =
+                        LEDPattern.gradient(
+                                        LEDPattern.GradientType.kContinuous,
+                                        Color.kBlack,
+                                        kTrueOrange)
+                                .scrollAtAbsoluteSpeed(MetersPerSecond.of(1), LED_SPACING);
+                m_isMovingPattern = true;
+                break;
+
+            case INTAKE:
+                m_currentPattern = LEDPattern.solid(Color.kWhite).blink(Second.of(0.5));
+                m_isMovingPattern = true;
+                break;
+
+            case ELEVATOR:
+                m_currentPattern = LEDPattern.solid(Color.kWhite).blink(Second.of(0.5));
+                m_isMovingPattern = true;
+                break;
+
+            case READY:
+                m_currentPattern = LEDPattern.solid(Color.kGreen);
+                m_isMovingPattern = false;
+                break;
+
+            case SHOOTER:
+                m_currentPattern = LEDPattern.solid(Color.kWhite).blink(Second.of(0.5));
+                m_isMovingPattern = true;
+                break;
+
+            case CLIMBER:
+                m_currentPattern = LEDPattern.solid(Color.kRed).blink(Second.of(0.5));
+                m_isMovingPattern = true;
+                break;
+
+            case DEEPCLIMB:
+                m_currentPattern = LEDPattern.solid(Color.kYellow).blink(Second.of(0.5));
+                m_isMovingPattern = true;
+                break;
+
+            case RAINBOW:
+                m_currentPattern =
+                        LEDPattern.rainbow(255, 255)
+                                .scrollAtAbsoluteSpeed(MetersPerSecond.of(1), LED_SPACING);
+                m_isMovingPattern = true;
+
+                break;
+        }
+        m_lastPattern = ledPattern;
+        m_isApplied = false;
+    }
+
+    @Override
+    public void periodic() {
+        if (DriverStation.isDisabled()) {
+            // Only set pattern once when entering disabled mode
+            if (m_lastPattern != Pattern.IDLE) {
+                SetPattern(Pattern.IDLE);
+                m_lastPattern = Pattern.IDLE;
+            }
+            m_currentPattern.applyTo(m_ledBuffer);
+            m_led.setData(m_ledBuffer);
+        } else {
+            // When enabled, track pattern changes
+            if (m_isMovingPattern || !m_isApplied) {
+                m_currentPattern.applyTo(m_ledBuffer);
+                m_led.setData(m_ledBuffer);
+                m_isApplied = true;
+            }
+        }
+    }
 }

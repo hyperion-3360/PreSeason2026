@@ -190,8 +190,39 @@ public final class Constants {
 
     /** LED Strip Constants */
     public static class LEDConstants {
-        public static final int kLEDPWMPort = 5;// PWM port for LED strip
-        public static final int kLEDLength = 30;// Number of LEDs in the strip
+        public static final int kLEDPWMPort = 5; // PWM port for LED strip
+        public static final int kLEDLength = 30; // Number of LEDs in the strip
+    }
+
+    /** Predictive Wheel Positioning Constants */
+    public static class PredictiveSteeringConstants {
+        // Master enable/disable (toggled by driver with Y button hold)
+        public static final boolean DEFAULT_ENABLED = false; // Start disabled
+
+        // Speed thresholds (m/s)
+        public static final double PREDICT_SPEED_THRESHOLD =
+                0.3; // Below this, prediction is active
+        public static final double STOPPED_SPEED_THRESHOLD = 0.2; // When robot is "stopped"
+        public static final double MIN_SPEED_FOR_RECORDING =
+                1.0; // Record direction above this speed
+
+        // Intent detection thresholds (joystick 0.0-1.0)
+        public static final double INTENT_THRESHOLD = 0.3; // 30% stick = driver has intent
+        public static final double CLEAR_INTENT_THRESHOLD = 0.5; // 50% stick = strong intent
+        public static final double NEUTRAL_THRESHOLD = 0.1; // Below this = neutral stick
+
+        // Joystick velocity detection (units/second)
+        public static final double RAPID_STICK_MOVEMENT =
+                5.0; // How fast stick moves for "direction change"
+
+        // Timing
+        public static final double ZERO_POINT_DELAY = 0.5; // Seconds before X-pattern activates
+        public static final double PREDICTION_CONFIDENCE_TIME =
+                0.1; // Hold prediction for this long
+
+        // Safety limits
+        public static final double MAX_SPEED_FOR_PREDICTION =
+                2.0; // Don't predict above this speed (too dangerous)
     }
 
     /**
