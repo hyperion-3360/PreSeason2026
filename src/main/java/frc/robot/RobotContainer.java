@@ -67,6 +67,7 @@ public class RobotContainer {
     private boolean autoAimEnabled = false;
     private boolean predictiveSteeringEnabled =
             Constants.PredictiveSteeringConstants.DEFAULT_ENABLED;
+    private boolean headingLockEnabled = Constants.HeadingLockConstants.DEFAULT_ENABLED;
 
     // Predictive Wheel Positioning state
     private Rotation2d m_lastDriveDirection = new Rotation2d(); // Last recorded driving direction
@@ -77,12 +78,23 @@ public class RobotContainer {
     private boolean m_isPredicting = false; // Currently in prediction mode
     private String m_predictionMode = "None"; // "Intent", "Last", "X-Pattern", "None"
 
+    // Heading Lock state
+    private Rotation2d m_lockedHeading = new Rotation2d(); // Heading to maintain
+    private boolean m_headingLocked = false; // Is heading currently locked
+
     // Auto-aim PID controller
     private final PIDController autoAimPID =
             new PIDController(
                     Constants.AutoAlignConstants.AUTO_AIM_kP,
                     Constants.AutoAlignConstants.AUTO_AIM_kI,
                     Constants.AutoAlignConstants.AUTO_AIM_kD);
+
+    // Heading lock PID controller
+    private final PIDController headingLockPID =
+            new PIDController(
+                    Constants.HeadingLockConstants.kP,
+                    Constants.HeadingLockConstants.kI,
+                    Constants.HeadingLockConstants.kD);
 
     // Motion profile chooser for alignment
     private final SendableChooser<Constants.AutoAlignConstants.MotionProfileType>
@@ -92,6 +104,11 @@ public class RobotContainer {
         // Configure auto-aim PID
         autoAimPID.enableContinuousInput(-Math.PI, Math.PI);
         autoAimPID.setTolerance(Constants.AutoAlignConstants.AUTO_AIM_TOLERANCE);
+
+        // Configure heading lock PID
+        headingLockPID.enableContinuousInput(-Math.PI, Math.PI);
+        headingLockPID.setTolerance(
+                Math.toRadians(Constants.HeadingLockConstants.LOCK_TOLERANCE_DEGREES));
 
         // Configure alignment profile chooser
         alignmentProfileChooser.setDefaultOption(
@@ -158,6 +175,19 @@ public class RobotContainer {
         Logger.recordOutput("RobotState/SCurveEnabled", sCurveEnabled);
         Logger.recordOutput("RobotState/AutoAimEnabled", autoAimEnabled);
         Logger.recordOutput("RobotState/PredictiveSteeringEnabled", predictiveSteeringEnabled);
+        Logger.recordOutput("RobotState/HeadingLockEnabled", headingLockEnabled);
+
+        // Log heading lock state
+        Logger.recordOutput("HeadingLock/Locked", m_headingLocked);
+        Logger.recordOutput("HeadingLock/LockedHeading", m_lockedHeading.getDegrees());
+        if (drivetrain.getState() != null && drivetrain.getState().Pose != null) {
+            Logger.recordOutput(
+                    "HeadingLock/CurrentHeading",
+                    drivetrain.getState().Pose.getRotation().getDegrees());
+            Logger.recordOutput(
+                    "HeadingLock/Error",
+                    m_lockedHeading.minus(drivetrain.getState().Pose.getRotation()).getDegrees());
+        }
 
         // Log predictive steering state
         Logger.recordOutput("PredictiveSteering/Active", m_isPredicting);
@@ -170,6 +200,11 @@ public class RobotContainer {
         SmartDashboard.putBoolean("Drive/Predictive Steering", predictiveSteeringEnabled);
         SmartDashboard.putBoolean("Drive/Predicting", m_isPredicting);
         SmartDashboard.putString("Drive/Prediction Mode", m_predictionMode);
+        SmartDashboard.putBoolean("Drive/Heading Lock", headingLockEnabled);
+        SmartDashboard.putBoolean("Drive/Heading Locked", m_headingLocked);
+        if (m_headingLocked) {
+            SmartDashboard.putNumber("Drive/Locked Heading", m_lockedHeading.getDegrees());
+        }
 
         // Log battery and brownout protection
         Logger.recordOutput("Battery/Voltage", brownoutProtection.getVoltage());
@@ -220,6 +255,51 @@ public class RobotContainer {
                                 rCmd = rScaled * MaxAngularRate;
                             }
 
+                            // ================================================================
+                            // HEADING LOCK
+                            // ================================================================
+                            if (headingLockEnabled && !autoAimEnabled) {
+                                // Check if rotation stick is near center
+                                if (Math.abs(rRaw)
+                                        < Constants.HeadingLockConstants.ROTATION_DEADBAND) {
+                                    // Rotation stick centered - engage heading lock
+                                    var drivetrainState = drivetrain.getState();
+                                    if (drivetrainState != null && drivetrainState.Pose != null) {
+                                        if (!m_headingLocked) {
+                                            // First time entering lock mode - capture current
+                                            // heading
+                                            m_lockedHeading = drivetrainState.Pose.getRotation();
+                                            m_headingLocked = true;
+                                            headingLockPID.reset();
+                                        }
+
+                                        // Calculate correction to maintain locked heading
+                                        Rotation2d currentHeading =
+                                                drivetrainState.Pose.getRotation();
+                                        double correction =
+                                                headingLockPID.calculate(
+                                                        currentHeading.getRadians(),
+                                                        m_lockedHeading.getRadians());
+
+                                        // Apply correction (scale to max angular velocity and
+                                        // limit)
+                                        rCmd =
+                                                MathUtil.clamp(
+                                                        correction * MaxAngularRate,
+                                                        -MaxAngularRate
+                                                                * Constants.HeadingLockConstants
+                                                                        .MAX_CORRECTION_RATE,
+                                                        MaxAngularRate
+                                                                * Constants.HeadingLockConstants
+                                                                        .MAX_CORRECTION_RATE);
+                                    }
+                                } else {
+                                    // Rotation stick active - unlock and use manual control
+                                    m_headingLocked = false;
+                                }
+                            }
+                            // ================================================================
+
                             // Auto-aim mode: robot controls rotation, driver controls translation
                             if (autoAimEnabled
                                     && vision.hasTarget()
@@ -241,9 +321,9 @@ public class RobotContainer {
                                 }
                             }
 
-                            // ═══════════════════════════════════════════════════════════
+                            // ================================================================
                             // PREDICTIVE WHEEL POSITIONING
-                            // ═══════════════════════════════════════════════════════════
+                            // ================================================================
                             if (predictiveSteeringEnabled && !autoAimEnabled) {
                                 // Get robot state
                                 var drivetrainState = drivetrain.getState();
@@ -319,7 +399,8 @@ public class RobotContainer {
                                                     < Constants.PredictiveSteeringConstants
                                                             .NEUTRAL_THRESHOLD) {
                                         // Coasting with no input - predict last direction
-                                        // Check if we have a valid recorded direction (magnitude > small
+                                        // Check if we have a valid recorded direction (magnitude >
+                                        // small
                                         // threshold)
                                         double lastDirMagnitude =
                                                 Math.hypot(
@@ -370,7 +451,7 @@ public class RobotContainer {
                                     }
                                 }
                             }
-                            // ═══════════════════════════════════════════════════════════
+                            // ================================================================
 
                             // Apply brownout protection to all commands (translation and rotation)
                             double speedScale = brownoutProtection.getSpeedScaleFactor();
@@ -491,6 +572,33 @@ public class RobotContainer {
                                     } else {
                                         System.out.println(
                                                 "[PredictiveSteering] DISABLED - Standard wheel control");
+                                        Haptics.buzzShort(joystick).schedule();
+                                    }
+                                }));
+
+        // ========== HEADING LOCK TOGGLE ==========
+        // Hold X button for 3 seconds to toggle heading lock
+        joystick.x()
+                .debounce(3.0)
+                .onTrue(
+                        Commands.runOnce(
+                                () -> {
+                                    headingLockEnabled = !headingLockEnabled;
+                                    if (headingLockEnabled) {
+                                        // Reset heading lock state when enabling
+                                        m_lockedHeading = new Rotation2d();
+                                        m_headingLocked = false;
+                                        headingLockPID.reset();
+
+                                        System.out.println(
+                                                "[HeadingLock] ENABLED - Robot will maintain heading when rotation stick centered");
+                                        Haptics.buzzOK(joystick).schedule();
+                                    } else {
+                                        // Unlock heading when disabling
+                                        m_headingLocked = false;
+
+                                        System.out.println(
+                                                "[HeadingLock] DISABLED - Manual rotation control");
                                         Haptics.buzzShort(joystick).schedule();
                                     }
                                 }));
