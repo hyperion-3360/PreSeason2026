@@ -171,8 +171,9 @@ public final class Constants {
         // Adaptive PID - Gains change based on distance to target
         public static final boolean ENABLE_ADAPTIVE_GAINS = true;
 
-        // Threshold distance for switching gains (meters)
-        public static final double ADAPTIVE_DISTANCE_THRESHOLD = 0.5; // Switch at 0.5m
+        // Threshold distances for switching gains with hysteresis (meters)
+        public static final double ADAPTIVE_THRESHOLD_ENTER_CLOSE = 0.5; // Enter CLOSE mode at 0.5m
+        public static final double ADAPTIVE_THRESHOLD_EXIT_CLOSE = 0.6; // Exit CLOSE mode at 0.6m
 
         // FAR gains (when distance > threshold) - Aggressive for speed
         public static final double kP_TRANSLATION_FAR = 4.0; // Lower P (faster, less precise)
@@ -185,6 +186,12 @@ public final class Constants {
         public static final double kD_TRANSLATION_CLOSE = 0.6; // Higher D (more damping)
         public static final double kP_ROTATION_CLOSE = 10.0;
         public static final double kD_ROTATION_CLOSE = 0.8;
+    }
+
+    /** LED Strip Constants */
+    public static class LEDConstants {
+        public static final int kLEDPWMPort = 5;// PWM port for LED strip
+        public static final int kLEDLength = 30;// Number of LEDs in the strip
     }
 
     /**
