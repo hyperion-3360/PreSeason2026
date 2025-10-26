@@ -200,19 +200,21 @@ public class RobotContainer {
                             if (autoAimEnabled
                                     && vision.hasTarget()
                                     && vision.isTargetInAutoAimRange()) {
-                                Rotation2d currentHeading =
-                                        drivetrain.getState().Pose.getRotation();
-                                Rotation2d targetAngle = vision.getAngleToTarget();
+                                var drivetrainState = drivetrain.getState();
+                                if (drivetrainState != null && drivetrainState.Pose != null) {
+                                    Rotation2d currentHeading = drivetrainState.Pose.getRotation();
+                                    Rotation2d targetAngle = vision.getAngleToTarget();
 
-                                rCmd =
-                                        MathUtil.clamp(
-                                                autoAimPID.calculate(
-                                                        currentHeading.getRadians(),
-                                                        targetAngle.getRadians()),
-                                                -Constants.AutoAlignConstants
-                                                        .AUTO_AIM_MAX_ANGULAR_VELOCITY,
-                                                Constants.AutoAlignConstants
-                                                        .AUTO_AIM_MAX_ANGULAR_VELOCITY);
+                                    rCmd =
+                                            MathUtil.clamp(
+                                                    autoAimPID.calculate(
+                                                            currentHeading.getRadians(),
+                                                            targetAngle.getRadians()),
+                                                    -Constants.AutoAlignConstants
+                                                            .AUTO_AIM_MAX_ANGULAR_VELOCITY,
+                                                    Constants.AutoAlignConstants
+                                                            .AUTO_AIM_MAX_ANGULAR_VELOCITY);
+                                }
                             }
 
                             // Apply brownout protection to all commands (translation and rotation)
