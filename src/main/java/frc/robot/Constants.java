@@ -203,6 +203,8 @@ public final class Constants {
         public static final double PREDICT_SPEED_THRESHOLD =
                 0.3; // Below this, prediction is active
         public static final double STOPPED_SPEED_THRESHOLD = 0.2; // When robot is "stopped"
+        public static final double MIN_ROBOT_SPEED =
+                0.05; // Minimum speed to consider robot moving (avoid noise)
         public static final double MIN_SPEED_FOR_RECORDING =
                 1.0; // Record direction above this speed
 

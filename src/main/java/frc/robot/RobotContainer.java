@@ -78,6 +78,8 @@ public class RobotContainer {
     private double m_timeAtStop = 0.0; // Timestamp when robot stopped
     private boolean m_isPredicting = false; // Currently in prediction mode
     private String m_predictionMode = "None"; // "Intent", "Last", "X-Pattern", "None"
+    private boolean m_hasRecordedDirection =
+            false; // Tracks if we've recorded a valid direction (solves forward/0° detection)
 
     // Heading Lock state
     private Rotation2d m_lockedHeading = new Rotation2d(); // Heading to maintain
@@ -189,15 +191,13 @@ public class RobotContainer {
             // Log heading lock state
             Logger.recordOutput("HeadingLock/Locked", m_headingLocked);
             Logger.recordOutput("HeadingLock/LockedHeading", m_lockedHeading.getDegrees());
-            if (drivetrain.getState() != null && drivetrain.getState().Pose != null) {
+            var state = drivetrain.getState();
+            if (state != null && state.Pose != null) {
                 Logger.recordOutput(
-                        "HeadingLock/CurrentHeading",
-                        drivetrain.getState().Pose.getRotation().getDegrees());
+                        "HeadingLock/CurrentHeading", state.Pose.getRotation().getDegrees());
                 Logger.recordOutput(
                         "HeadingLock/Error",
-                        m_lockedHeading
-                                .minus(drivetrain.getState().Pose.getRotation())
-                                .getDegrees());
+                        m_lockedHeading.minus(state.Pose.getRotation()).getDegrees());
             }
 
             // Log predictive steering state
@@ -269,6 +269,11 @@ public class RobotContainer {
                             }
 
                             // ================================================================
+                            // Get drivetrain state once (reused by Heading Lock and Predictive)
+                            // ================================================================
+                            var drivetrainState = drivetrain.getState();
+
+                            // ================================================================
                             // HEADING LOCK
                             // ================================================================
                             if (headingLockEnabled && !autoAimEnabled) {
@@ -276,7 +281,6 @@ public class RobotContainer {
                                 if (Math.abs(rRaw)
                                         < Constants.HeadingLockConstants.ROTATION_DEADBAND) {
                                     // Rotation stick centered - engage heading lock
-                                    var drivetrainState = drivetrain.getState();
                                     if (drivetrainState != null && drivetrainState.Pose != null) {
                                         if (!m_headingLocked) {
                                             // First time entering lock mode - capture current
@@ -318,7 +322,7 @@ public class RobotContainer {
                             if (autoAimEnabled
                                     && vision.hasTarget()
                                     && vision.isTargetInAutoAimRange()) {
-                                var drivetrainState = drivetrain.getState();
+                                // Reuse drivetrainState from above
                                 if (drivetrainState != null && drivetrainState.Pose != null) {
                                     Rotation2d currentHeading = drivetrainState.Pose.getRotation();
                                     Rotation2d targetAngle = vision.getAngleToTarget();
@@ -356,6 +360,7 @@ public class RobotContainer {
                             if (!predictiveSteeringEnabled || autoAimEnabled) {
                                 m_isPredicting = false;
                                 m_predictionMode = "None";
+                                m_hasRecordedDirection = false;
                             }
 
                             if (predictiveSteeringEnabled && !autoAimEnabled) {
@@ -368,8 +373,7 @@ public class RobotContainer {
                                 boolean headingLockActive = headingLockEnabled && m_headingLocked;
 
                                 if (!isRotating && !headingLockActive) {
-                                    // Get robot state
-                                    var drivetrainState = drivetrain.getState();
+                                    // Reuse drivetrainState from above
                                     if (drivetrainState != null
                                             && drivetrainState.Speeds != null
                                             && drivetrainState.Pose != null) {
@@ -381,18 +385,16 @@ public class RobotContainer {
                                         double currentIntent = Math.hypot(xScaled, yScaled);
 
                                         // Note: joystickVelocity already calculated above (line
-                                        // 335)
-
-                                        // Reset prediction state by default
-                                        m_isPredicting = false;
-                                        m_predictionMode = "None";
+                                        // 349)
 
                                         // PRIORITY 1: Driver shows clear intent while robot is
                                         // slowing
                                         if (robotSpeed
                                                         < Constants.PredictiveSteeringConstants
                                                                 .PREDICT_SPEED_THRESHOLD
-                                                && robotSpeed > 0.05
+                                                && robotSpeed
+                                                        > Constants.PredictiveSteeringConstants
+                                                                .MIN_ROBOT_SPEED
                                                 && currentIntent
                                                         > Constants.PredictiveSteeringConstants
                                                                 .CLEAR_INTENT_THRESHOLD) {
@@ -444,17 +446,17 @@ public class RobotContainer {
                                         else if (robotSpeed
                                                         < Constants.PredictiveSteeringConstants
                                                                 .PREDICT_SPEED_THRESHOLD
-                                                && robotSpeed > 0.05
+                                                && robotSpeed
+                                                        > Constants.PredictiveSteeringConstants
+                                                                .MIN_ROBOT_SPEED
                                                 && currentIntent
                                                         < Constants.PredictiveSteeringConstants
                                                                 .NEUTRAL_THRESHOLD) {
                                             // Coasting with no input - predict last direction
                                             // Check if we have a valid recorded direction
-                                            double lastDirMagnitude =
-                                                    Math.hypot(
-                                                            m_lastDriveDirection.getCos(),
-                                                            m_lastDriveDirection.getSin());
-                                            if (lastDirMagnitude > 0.1) {
+                                            // This now works for ALL directions including forward
+                                            // (0°)
+                                            if (m_hasRecordedDirection) {
                                                 m_isPredicting = true;
                                                 m_predictionMode = "LastDirection";
                                                 m_timeAtStop = 0.0; // Reset - not stopped
@@ -506,6 +508,8 @@ public class RobotContainer {
                                                         > Constants.PredictiveSteeringConstants
                                                                 .MIN_SPEED_FOR_RECORDING) {
                                             m_lastDriveDirection = new Rotation2d(xScaled, yScaled);
+                                            m_hasRecordedDirection =
+                                                    true; // Mark that we have a valid direction
                                             m_timeAtStop = 0.0;
                                         }
                                     }
@@ -514,6 +518,7 @@ public class RobotContainer {
                                     // Reset prediction state to avoid conflicts
                                     m_isPredicting = false;
                                     m_predictionMode = "None";
+                                    m_hasRecordedDirection = false;
                                     m_timeAtStop = 0.0;
                                 }
                             }
@@ -562,6 +567,7 @@ public class RobotContainer {
                                             m_lastJoystickY = 0.0;
                                             m_timeAtStop = 0.0;
                                             m_isPredicting = false;
+                                            m_hasRecordedDirection = false;
                                         })
                                 .ignoringDisable(true));
 
@@ -582,6 +588,7 @@ public class RobotContainer {
                                     m_lastJoystickY = 0.0;
                                     m_timeAtStop = 0.0;
                                     m_isPredicting = false;
+                                    m_hasRecordedDirection = false;
                                 }))
                 .whileTrue(
                         AlignToTagCommand.withDefaultDistance(
@@ -598,6 +605,7 @@ public class RobotContainer {
                                     m_lastJoystickY = 0.0;
                                     m_timeAtStop = 0.0;
                                     m_isPredicting = false;
+                                    m_hasRecordedDirection = false;
 
                                     System.out.println(
                                             "[Align] Button released - driver assists reset");
@@ -628,6 +636,7 @@ public class RobotContainer {
                                         m_lastJoystickY = 0.0;
                                         m_timeAtStop = 0.0;
                                         m_isPredicting = false;
+                                        m_hasRecordedDirection = false;
 
                                         System.out.println(
                                                 "[Auto-Aim] ENABLED - Robot will auto-rotate to closest AprilTag");
@@ -645,6 +654,7 @@ public class RobotContainer {
                                         m_lastJoystickY = 0.0;
                                         m_timeAtStop = 0.0;
                                         m_isPredicting = false;
+                                        m_hasRecordedDirection = false;
 
                                         System.out.println(
                                                 "[Auto-Aim] DISABLED - Manual rotation control");
@@ -705,6 +715,7 @@ public class RobotContainer {
                                         m_predictedDirection = new Rotation2d();
                                         m_timeAtStop = 0.0;
                                         m_isPredicting = false;
+                                        m_hasRecordedDirection = false;
 
                                         System.out.println(
                                                 "[PredictiveSteering] ENABLED - Wheels will pre-position for next move");
@@ -768,8 +779,7 @@ public class RobotContainer {
                         Commands.runOnce(
                                 () -> {
                                     String routine = drivetrain.cycleSysIdRoutine();
-                                    System.out.println(
-                                            "[SysId] Selected routine: " + routine);
+                                    System.out.println("[SysId] Selected routine: " + routine);
                                     Haptics.buzzShort(joystick).schedule();
                                 }));
 
@@ -778,8 +788,7 @@ public class RobotContainer {
                         Commands.runOnce(
                                 () -> {
                                     String routine = drivetrain.cycleSysIdRoutine();
-                                    System.out.println(
-                                            "[SysId] Selected routine: " + routine);
+                                    System.out.println("[SysId] Selected routine: " + routine);
                                     Haptics.buzzShort(joystick).schedule();
                                 }));
 
