@@ -338,18 +338,39 @@ public class AlignToTagCommand extends Command {
         if (interrupted) {
             System.out.println("[AlignToTag] Alignment interrupted (target unlocked)");
         } else {
-            // Calculate final distance - just show alignment error
+            // Calculate final distance and detailed error breakdown
             var drivetrainState = m_drivetrain.getState();
             if (drivetrainState != null && drivetrainState.Pose != null && m_targetPose != null) {
+                Pose2d finalPose = drivetrainState.Pose;
                 double alignmentError =
-                        drivetrainState
-                                .Pose
-                                .getTranslation()
-                                .getDistance(m_targetPose.getTranslation());
+                        finalPose.getTranslation().getDistance(m_targetPose.getTranslation());
+
+                // Calculate X and Y error separately for debugging translation offset
+                double xError = finalPose.getX() - m_targetPose.getX();
+                double yError = finalPose.getY() - m_targetPose.getY();
+                double angleError =
+                        Math.toDegrees(
+                                finalPose.getRotation().getRadians()
+                                        - m_targetPose.getRotation().getRadians());
+
                 System.out.println(
                         String.format(
-                                "[AlignToTag] Alignment complete! Error: %.2fm (target bumper distance: %.2fm)",
-                                alignmentError, m_targetDistance));
+                                "[AlignToTag] Alignment complete!\n"
+                                        + "  Total Error: %.3fm (%.1f inches)\n"
+                                        + "  X Error: %.3fm (%.1f inches) | Y Error: %.3fm (%.1f inches)\n"
+                                        + "  Angle Error: %.1f°\n"
+                                        + "  Target bumper distance: %.2fm | Final velocity: %.2f m/s",
+                                alignmentError,
+                                alignmentError * 39.37, // meters to inches
+                                xError,
+                                xError * 39.37,
+                                yError,
+                                yError * 39.37,
+                                angleError,
+                                m_targetDistance,
+                                Math.hypot(
+                                        drivetrainState.Speeds.vxMetersPerSecond,
+                                        drivetrainState.Speeds.vyMetersPerSecond)));
             } else {
                 System.out.println("[AlignToTag] Alignment complete!");
             }
@@ -363,7 +384,46 @@ public class AlignToTagCommand extends Command {
             return true;
         }
 
-        return m_xController.atGoal() && m_yController.atGoal() && m_thetaController.atGoal();
+        // Check if position is at goal
+        boolean positionAtGoal =
+                m_xController.atGoal() && m_yController.atGoal() && m_thetaController.atGoal();
+
+        if (!positionAtGoal) {
+            return false; // Not at position yet
+        }
+
+        // Position reached - now check if velocity is low enough to prevent overshoot
+        var drivetrainState = m_drivetrain.getState();
+        if (drivetrainState == null || drivetrainState.Speeds == null) {
+            return positionAtGoal; // Fall back to position-only check if no state
+        }
+
+        // Calculate total velocity magnitude
+        double velocityMagnitude =
+                Math.hypot(
+                        drivetrainState.Speeds.vxMetersPerSecond,
+                        drivetrainState.Speeds.vyMetersPerSecond);
+        double angularVelocity = Math.abs(drivetrainState.Speeds.omegaRadiansPerSecond);
+
+        // Only finish if velocity is very low (prevents overshoot from inertia)
+        boolean velocityLow =
+                velocityMagnitude < Constants.AutoAlignConstants.VELOCITY_TOLERANCE
+                        && angularVelocity
+                                < Constants.AutoAlignConstants.ANGULAR_VELOCITY_TOLERANCE;
+
+        // Log when position reached but waiting for velocity to settle
+        if (positionAtGoal && !velocityLow) {
+            double currentTime = edu.wpi.first.wpilibj.Timer.getFPGATimestamp();
+            if (currentTime - m_lastPrintTime > 0.5) { // Throttle to once per 0.5s
+                System.out.println(
+                        String.format(
+                                "[AlignToTag] Position reached, waiting for velocity to settle (v=%.2f m/s, ω=%.2f rad/s)",
+                                velocityMagnitude, angularVelocity));
+                m_lastPrintTime = currentTime;
+            }
+        }
+
+        return positionAtGoal && velocityLow;
     }
 
     /**
