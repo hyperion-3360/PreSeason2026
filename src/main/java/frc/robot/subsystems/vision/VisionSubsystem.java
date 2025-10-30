@@ -34,6 +34,7 @@ public class VisionSubsystem extends SubsystemBase {
     private double m_lastTargetSeenTime = edu.wpi.first.wpilibj.Timer.getFPGATimestamp();
     private TargetPriority m_targetPriority = TargetPriority.BALANCED;
     private boolean m_targetLocked = false; // Prevents target switching during alignment
+    private boolean m_visionUpdatesEnabled = true; // Can disable to prevent odometry interference
 
     // Priority chooser for SmartDashboard
     private final SendableChooser<TargetPriority> m_priorityChooser = new SendableChooser<>();
@@ -146,7 +147,9 @@ public class VisionSubsystem extends SubsystemBase {
             camera.update(currentPose);
 
             // If camera has a pose estimate, add it to drivetrain
-            if (camera.isConnected()) {
+            // Skip vision updates if disabled (e.g., during auto-align to prevent field-centric
+            // drift)
+            if (camera.isConnected() && m_visionUpdatesEnabled) {
                 camera.getLatestPose()
                         .ifPresent(
                                 pose -> {
@@ -421,6 +424,25 @@ public class VisionSubsystem extends SubsystemBase {
     public void unlockTarget() {
         m_targetLocked = false;
         System.out.println("[Vision] Target unlocked");
+    }
+
+    /**
+     * Disables vision odometry updates to prevent field-centric drift during auto-align. Call this
+     * when starting auto-align.
+     */
+    public void disableVisionUpdates() {
+        m_visionUpdatesEnabled = false;
+        System.out.println(
+                "[Vision] Vision odometry updates DISABLED (preventing field-centric drift)");
+    }
+
+    /**
+     * Re-enables vision odometry updates after auto-align completes. Call this when ending
+     * auto-align.
+     */
+    public void enableVisionUpdates() {
+        m_visionUpdatesEnabled = true;
+        System.out.println("[Vision] Vision odometry updates ENABLED");
     }
 
     /**

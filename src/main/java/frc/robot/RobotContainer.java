@@ -68,7 +68,7 @@ public class RobotContainer {
     private boolean predictiveSteeringEnabled =
             Constants.PredictiveSteeringConstants.DEFAULT_ENABLED;
     private boolean headingLockEnabled = Constants.HeadingLockConstants.DEFAULT_ENABLED;
-    private boolean verboseLoggingEnabled = true; // Toggle for detailed logs (performance)
+    private boolean verboseLoggingEnabled = false; // Toggle for detailed logs (performance)
 
     // Predictive Wheel Positioning state
     private Rotation2d m_lastDriveDirection = new Rotation2d(); // Last recorded driving direction
@@ -221,6 +221,13 @@ public class RobotContainer {
             // Log max speeds (useful for seeing brownout effects)
             Logger.recordOutput("RobotState/MaxSpeed", MaxSpeed);
             Logger.recordOutput("RobotState/MaxAngularRate", MaxAngularRate);
+
+            // Log speed limiter status
+            Logger.recordOutput(
+                    "RobotState/SpeedLimiterPercent",
+                    Constants.DriveConstants.SPEED_LIMITER_PERCENT);
+            SmartDashboard.putNumber(
+                    "Drive/Speed Limiter %", Constants.DriveConstants.SPEED_LIMITER_PERCENT);
         }
 
         // Always show verbose logging status
@@ -529,6 +536,15 @@ public class RobotContainer {
                             xCmd *= speedScale;
                             yCmd *= speedScale;
                             rCmd *= speedScale;
+
+                            // ================================================================
+                            // UNIVERSAL SPEED LIMITER (applies to all drive modes)
+                            // ================================================================
+                            double speedLimiterScale =
+                                    Constants.DriveConstants.SPEED_LIMITER_PERCENT / 100.0;
+                            xCmd *= speedLimiterScale;
+                            yCmd *= speedLimiterScale;
+                            rCmd *= speedLimiterScale;
 
                             // Choose which command to return based on whether predictive steering
                             // is active
