@@ -2,6 +2,7 @@ package frc.robot;
 
 import static edu.wpi.first.units.Units.*;
 
+import com.ctre.phoenix6.swerve.SwerveDrivetrain.SwerveDriveState;
 import com.ctre.phoenix6.swerve.SwerveModule.DriveRequestType;
 import com.ctre.phoenix6.swerve.SwerveRequest;
 import edu.wpi.first.math.MathUtil;
@@ -65,21 +66,11 @@ public class RobotContainer {
     // Toggle flags
     private boolean sCurveEnabled = Constants.DriveConstants.SCURVE_ENABLED_DEFAULT;
     private boolean autoAimEnabled = false;
-    private boolean predictiveSteeringEnabled =
-            Constants.PredictiveSteeringConstants.DEFAULT_ENABLED;
     private boolean headingLockEnabled = Constants.HeadingLockConstants.DEFAULT_ENABLED;
-    private boolean verboseLoggingEnabled = true; // Toggle for detailed logs (performance)
+    private boolean verboseLoggingEnabled = false; // Toggle for detailed logs (performance)
 
-    // Predictive Wheel Positioning state
-    private Rotation2d m_lastDriveDirection = new Rotation2d(); // Last recorded driving direction
-    private Rotation2d m_predictedDirection = new Rotation2d(); // Predicted next direction
-    private double m_lastJoystickX = 0.0; // For detecting joystick velocity
-    private double m_lastJoystickY = 0.0;
-    private double m_timeAtStop = 0.0; // Timestamp when robot stopped
-    private boolean m_isPredicting = false; // Currently in prediction mode
-    private String m_predictionMode = "None"; // "Intent", "Last", "X-Pattern", "None"
-    private boolean m_hasRecordedDirection =
-            false; // Tracks if we've recorded a valid direction (solves forward/0° detection)
+    // Performance optimization: Cache drivetrain state to avoid multiple CAN bus calls per cycle
+    private SwerveDriveState m_cachedDrivetrainState = null;
 
     // Heading Lock state
     private Rotation2d m_lockedHeading = new Rotation2d(); // Heading to maintain
@@ -135,14 +126,9 @@ public class RobotContainer {
     /* Setting up bindings for necessary control of the swerve drive platform */
     private final SwerveRequest.FieldCentric drive =
             new SwerveRequest.FieldCentric()
-                    .withDeadband(MaxSpeed * 0.1)
-                    .withRotationalDeadband(MaxAngularRate * 0.1) // Add a 10% deadband
                     .withDriveRequestType(
                             DriveRequestType
                                     .OpenLoopVoltage); // Use open-loop control for drive motors
-
-    private final SwerveRequest.SwerveDriveBrake brake = new SwerveRequest.SwerveDriveBrake();
-    private final SwerveRequest.PointWheelsAt point = new SwerveRequest.PointWheelsAt();
 
     private final Telemetry logger = new Telemetry(MaxSpeed);
 
@@ -167,6 +153,9 @@ public class RobotContainer {
     public void periodic() {
         brownoutProtection.update();
 
+        // Cache drivetrain state once per cycle to avoid multiple CAN bus calls
+        m_cachedDrivetrainState = drivetrain.getState();
+
         // Always log critical battery info (regardless of verbose toggle)
         Logger.recordOutput("Battery/Voltage", brownoutProtection.getVoltage());
         Logger.recordOutput("Battery/Status", brownoutProtection.getStatus().toString());
@@ -185,33 +174,24 @@ public class RobotContainer {
             // Log control modes
             Logger.recordOutput("RobotState/SCurveEnabled", sCurveEnabled);
             Logger.recordOutput("RobotState/AutoAimEnabled", autoAimEnabled);
-            Logger.recordOutput("RobotState/PredictiveSteeringEnabled", predictiveSteeringEnabled);
             Logger.recordOutput("RobotState/HeadingLockEnabled", headingLockEnabled);
 
             // Log heading lock state
             Logger.recordOutput("HeadingLock/Locked", m_headingLocked);
             Logger.recordOutput("HeadingLock/LockedHeading", m_lockedHeading.getDegrees());
-            var state = drivetrain.getState();
-            if (state != null && state.Pose != null) {
+            // Use cached drivetrain state to avoid extra CAN bus call
+            if (m_cachedDrivetrainState != null && m_cachedDrivetrainState.Pose != null) {
                 Logger.recordOutput(
-                        "HeadingLock/CurrentHeading", state.Pose.getRotation().getDegrees());
+                        "HeadingLock/CurrentHeading",
+                        m_cachedDrivetrainState.Pose.getRotation().getDegrees());
                 Logger.recordOutput(
                         "HeadingLock/Error",
-                        m_lockedHeading.minus(state.Pose.getRotation()).getDegrees());
+                        m_lockedHeading
+                                .minus(m_cachedDrivetrainState.Pose.getRotation())
+                                .getDegrees());
             }
 
-            // Log predictive steering state
-            Logger.recordOutput("PredictiveSteering/Active", m_isPredicting);
-            Logger.recordOutput("PredictiveSteering/Mode", m_predictionMode);
-            Logger.recordOutput(
-                    "PredictiveSteering/LastDirection", m_lastDriveDirection.getDegrees());
-            Logger.recordOutput(
-                    "PredictiveSteering/PredictedDirection", m_predictedDirection.getDegrees());
-
             // SmartDashboard telemetry
-            SmartDashboard.putBoolean("Drive/Predictive Steering", predictiveSteeringEnabled);
-            SmartDashboard.putBoolean("Drive/Predicting", m_isPredicting);
-            SmartDashboard.putString("Drive/Prediction Mode", m_predictionMode);
             SmartDashboard.putBoolean("Drive/Heading Lock", headingLockEnabled);
             SmartDashboard.putBoolean("Drive/Heading Locked", m_headingLocked);
             if (m_headingLocked) {
@@ -221,6 +201,13 @@ public class RobotContainer {
             // Log max speeds (useful for seeing brownout effects)
             Logger.recordOutput("RobotState/MaxSpeed", MaxSpeed);
             Logger.recordOutput("RobotState/MaxAngularRate", MaxAngularRate);
+
+            // Log speed limiter status
+            Logger.recordOutput(
+                    "RobotState/SpeedLimiterPercent",
+                    Constants.DriveConstants.SPEED_LIMITER_PERCENT);
+            SmartDashboard.putNumber(
+                    "Drive/Speed Limiter %", Constants.DriveConstants.SPEED_LIMITER_PERCENT);
         }
 
         // Always show verbose logging status
@@ -269,9 +256,9 @@ public class RobotContainer {
                             }
 
                             // ================================================================
-                            // Get drivetrain state once (reused by Heading Lock and Predictive)
+                            // Use cached drivetrain state (already fetched in periodic())
                             // ================================================================
-                            var drivetrainState = drivetrain.getState();
+                            var drivetrainState = m_cachedDrivetrainState;
 
                             // ================================================================
                             // HEADING LOCK
@@ -339,218 +326,23 @@ public class RobotContainer {
                                 }
                             }
 
-                            // ================================================================
-                            // PREDICTIVE WHEEL POSITIONING
-                            // ================================================================
-                            // Flag to track if we should override normal drive with prediction
-                            boolean usePredictiveSteering = false;
-                            SwerveRequest predictiveRequest = null;
-
-                            // ALWAYS update joystick history (needed for velocity calculation)
-                            // even if predictive steering is disabled
-                            double deltaX = xScaled - m_lastJoystickX;
-                            double deltaY = yScaled - m_lastJoystickY;
-                            double joystickVelocity =
-                                    Math.hypot(deltaX, deltaY) / 0.02; // per second
-                            m_lastJoystickX = xScaled;
-                            m_lastJoystickY = yScaled;
-
-                            // Reset prediction state if predictive steering is disabled or auto-aim
-                            // active
-                            if (!predictiveSteeringEnabled || autoAimEnabled) {
-                                m_isPredicting = false;
-                                m_predictionMode = "None";
-                                m_hasRecordedDirection = false;
-                            }
-
-                            if (predictiveSteeringEnabled && !autoAimEnabled) {
-                                // CRITICAL: Only use predictive steering when NOT rotating
-                                // AND when Heading Lock is not active (to avoid conflicts)
-                                // Use same threshold as Heading Lock for consistency
-                                boolean isRotating =
-                                        Math.abs(rRaw)
-                                                >= Constants.HeadingLockConstants.ROTATION_DEADBAND;
-                                boolean headingLockActive = headingLockEnabled && m_headingLocked;
-
-                                if (!isRotating && !headingLockActive) {
-                                    // Reuse drivetrainState from above
-                                    if (drivetrainState != null
-                                            && drivetrainState.Speeds != null
-                                            && drivetrainState.Pose != null) {
-                                        double robotSpeed =
-                                                Math.hypot(
-                                                        drivetrainState.Speeds.vxMetersPerSecond,
-                                                        drivetrainState.Speeds.vyMetersPerSecond);
-                                        // Use SCALED values to match driver's actual control feel
-                                        double currentIntent = Math.hypot(xScaled, yScaled);
-
-                                        // Note: joystickVelocity already calculated above (line
-                                        // 349)
-
-                                        // PRIORITY 1: Driver shows clear intent while robot is
-                                        // slowing
-                                        if (robotSpeed
-                                                        < Constants.PredictiveSteeringConstants
-                                                                .PREDICT_SPEED_THRESHOLD
-                                                && robotSpeed
-                                                        > Constants.PredictiveSteeringConstants
-                                                                .MIN_ROBOT_SPEED
-                                                && currentIntent
-                                                        > Constants.PredictiveSteeringConstants
-                                                                .CLEAR_INTENT_THRESHOLD) {
-                                            // Driver is inputting a direction while robot coasts
-                                            m_predictedDirection = new Rotation2d(xScaled, yScaled);
-                                            m_isPredicting = true;
-                                            m_predictionMode = "Intent";
-                                            m_timeAtStop = 0.0; // Reset - not stopped
-                                            usePredictiveSteering = true;
-                                            predictiveRequest =
-                                                    point.withModuleDirection(m_predictedDirection);
-                                        }
-
-                                        // PRIORITY 2: Rapid joystick movement detected (direction
-                                        // change)
-                                        else if (joystickVelocity
-                                                        > Constants.PredictiveSteeringConstants
-                                                                .RAPID_STICK_MOVEMENT
-                                                && currentIntent
-                                                        > Constants.PredictiveSteeringConstants
-                                                                .INTENT_THRESHOLD
-                                                && robotSpeed
-                                                        < Constants.PredictiveSteeringConstants
-                                                                .MAX_SPEED_FOR_PREDICTION) {
-                                            // Driver is yanking the stick - direction change
-                                            // coming!
-                                            m_predictedDirection = new Rotation2d(xScaled, yScaled);
-
-                                            // Pre-position if slow enough
-                                            if (robotSpeed
-                                                    < Constants.PredictiveSteeringConstants
-                                                            .PREDICT_SPEED_THRESHOLD) {
-                                                m_isPredicting = true;
-                                                m_predictionMode = "RapidChange";
-                                                m_timeAtStop = 0.0; // Reset - not stopped
-                                                usePredictiveSteering = true;
-                                                predictiveRequest =
-                                                        point.withModuleDirection(
-                                                                m_predictedDirection);
-                                            } else {
-                                                // Not slow enough - just record prediction but
-                                                // don't
-                                                // activate
-                                                m_timeAtStop = 0.0;
-                                            }
-                                        }
-
-                                        // PRIORITY 3: Robot coasting - use last direction
-                                        else if (robotSpeed
-                                                        < Constants.PredictiveSteeringConstants
-                                                                .PREDICT_SPEED_THRESHOLD
-                                                && robotSpeed
-                                                        > Constants.PredictiveSteeringConstants
-                                                                .MIN_ROBOT_SPEED
-                                                && currentIntent
-                                                        < Constants.PredictiveSteeringConstants
-                                                                .NEUTRAL_THRESHOLD) {
-                                            // Coasting with no input - predict last direction
-                                            // Check if we have a valid recorded direction
-                                            // This now works for ALL directions including forward
-                                            // (0°)
-                                            if (m_hasRecordedDirection) {
-                                                m_isPredicting = true;
-                                                m_predictionMode = "LastDirection";
-                                                m_timeAtStop = 0.0; // Reset - not stopped
-                                                usePredictiveSteering = true;
-                                                predictiveRequest =
-                                                        point.withModuleDirection(
-                                                                m_lastDriveDirection);
-                                            } else {
-                                                // No valid direction - reset timer
-                                                m_timeAtStop = 0.0;
-                                            }
-                                        }
-
-                                        // PRIORITY 4: Fully stopped - X-pattern after delay
-                                        else if (robotSpeed
-                                                        < Constants.PredictiveSteeringConstants
-                                                                .STOPPED_SPEED_THRESHOLD
-                                                && currentIntent
-                                                        < Constants.PredictiveSteeringConstants
-                                                                .NEUTRAL_THRESHOLD) {
-                                            // Robot is stopped - start/continue timer
-                                            if (m_timeAtStop == 0.0) {
-                                                m_timeAtStop =
-                                                        edu.wpi.first.wpilibj.Timer
-                                                                .getFPGATimestamp();
-                                            }
-
-                                            double stoppedDuration =
-                                                    edu.wpi.first.wpilibj.Timer.getFPGATimestamp()
-                                                            - m_timeAtStop;
-                                            if (stoppedDuration
-                                                    > Constants.PredictiveSteeringConstants
-                                                            .ZERO_POINT_DELAY) {
-                                                m_isPredicting = true;
-                                                m_predictionMode = "X-Pattern";
-                                                usePredictiveSteering = true;
-                                                predictiveRequest = brake; // X-formation
-                                            }
-                                        } else {
-                                            // Robot is moving - reset timer
-                                            m_timeAtStop = 0.0;
-                                        }
-
-                                        // Update last direction when actively driving
-                                        if (currentIntent
-                                                        > Constants.PredictiveSteeringConstants
-                                                                .INTENT_THRESHOLD
-                                                && robotSpeed
-                                                        > Constants.PredictiveSteeringConstants
-                                                                .MIN_SPEED_FOR_RECORDING) {
-                                            m_lastDriveDirection = new Rotation2d(xScaled, yScaled);
-                                            m_hasRecordedDirection =
-                                                    true; // Mark that we have a valid direction
-                                            m_timeAtStop = 0.0;
-                                        }
-                                    }
-                                } else {
-                                    // Driver is actively rotating OR Heading Lock is active
-                                    // Reset prediction state to avoid conflicts
-                                    m_isPredicting = false;
-                                    m_predictionMode = "None";
-                                    m_hasRecordedDirection = false;
-                                    m_timeAtStop = 0.0;
-                                }
-                            }
-                            // ================================================================
-
                             // Apply brownout protection to all commands (translation and rotation)
                             double speedScale = brownoutProtection.getSpeedScaleFactor();
                             xCmd *= speedScale;
                             yCmd *= speedScale;
                             rCmd *= speedScale;
 
-                            // Choose which command to return based on whether predictive steering
-                            // is active
-                            if (usePredictiveSteering && predictiveRequest != null) {
-                                // Predictive steering is active - use the predictive request
-                                // Reset S-curve limiters to current velocities to avoid spikes
-                                // when transitioning back to normal drive
-                                if (sCurveEnabled) {
-                                    vxLim.reset(xCmd / MaxSpeed);
-                                    vyLim.reset(yCmd / MaxSpeed);
-                                    omLim.reset(rCmd / MaxAngularRate);
-                                }
+                            // ================================================================
+                            // UNIVERSAL SPEED LIMITER (applies to all drive modes)
+                            // ================================================================
+                            xCmd *= Constants.DriveConstants.SPEED_LIMITER_SCALE;
+                            yCmd *= Constants.DriveConstants.SPEED_LIMITER_SCALE;
+                            rCmd *= Constants.DriveConstants.SPEED_LIMITER_SCALE;
 
-                                // Note: Brownout protection doesn't apply to predictive requests
-                                // since they're positional commands, not velocity commands
-                                return predictiveRequest;
-                            } else {
-                                // Normal drive mode - use calculated velocities
-                                return drive.withVelocityX(xCmd)
-                                        .withVelocityY(yCmd)
-                                        .withRotationalRate(rCmd);
-                            }
+                            // Return normal field-centric drive command
+                            return drive.withVelocityX(xCmd)
+                                    .withVelocityY(yCmd)
+                                    .withRotationalRate(rCmd);
                         }));
 
         // Idle while the robot is disabled. This ensures the configured
@@ -562,12 +354,7 @@ public class RobotContainer {
                                             vxLim.reset(0);
                                             vyLim.reset(0);
                                             omLim.reset(0);
-                                            // Reset predictive steering state
-                                            m_lastJoystickX = 0.0;
-                                            m_lastJoystickY = 0.0;
-                                            m_timeAtStop = 0.0;
-                                            m_isPredicting = false;
-                                            m_hasRecordedDirection = false;
+                                            m_cachedDrivetrainState = null; // Clear stale cache
                                         })
                                 .ignoringDisable(true));
 
@@ -580,15 +367,6 @@ public class RobotContainer {
                                     // Reset all driver assist states when starting auto-align
                                     m_headingLocked = false;
                                     headingLockPID.reset();
-
-                                    // Reset predictive steering state to prevent stale predictions
-                                    m_lastDriveDirection = new Rotation2d();
-                                    m_predictedDirection = new Rotation2d();
-                                    m_lastJoystickX = 0.0;
-                                    m_lastJoystickY = 0.0;
-                                    m_timeAtStop = 0.0;
-                                    m_isPredicting = false;
-                                    m_hasRecordedDirection = false;
                                 }))
                 .whileTrue(
                         AlignToTagCommand.withDefaultDistance(
@@ -599,13 +377,6 @@ public class RobotContainer {
                                     // Reset states again when alignment ends to ensure clean state
                                     m_headingLocked = false;
                                     headingLockPID.reset();
-                                    m_lastDriveDirection = new Rotation2d();
-                                    m_predictedDirection = new Rotation2d();
-                                    m_lastJoystickX = 0.0;
-                                    m_lastJoystickY = 0.0;
-                                    m_timeAtStop = 0.0;
-                                    m_isPredicting = false;
-                                    m_hasRecordedDirection = false;
 
                                     System.out.println(
                                             "[Align] Button released - driver assists reset");
@@ -630,13 +401,6 @@ public class RobotContainer {
                                         // Reset driver assists when enabling auto-aim
                                         m_headingLocked = false;
                                         headingLockPID.reset();
-                                        m_lastDriveDirection = new Rotation2d();
-                                        m_predictedDirection = new Rotation2d();
-                                        m_lastJoystickX = 0.0;
-                                        m_lastJoystickY = 0.0;
-                                        m_timeAtStop = 0.0;
-                                        m_isPredicting = false;
-                                        m_hasRecordedDirection = false;
 
                                         System.out.println(
                                                 "[Auto-Aim] ENABLED - Robot will auto-rotate to closest AprilTag");
@@ -648,13 +412,6 @@ public class RobotContainer {
                                         // Reset driver assists when disabling auto-aim
                                         m_headingLocked = false;
                                         headingLockPID.reset();
-                                        m_lastDriveDirection = new Rotation2d();
-                                        m_predictedDirection = new Rotation2d();
-                                        m_lastJoystickX = 0.0;
-                                        m_lastJoystickY = 0.0;
-                                        m_timeAtStop = 0.0;
-                                        m_isPredicting = false;
-                                        m_hasRecordedDirection = false;
 
                                         System.out.println(
                                                 "[Auto-Aim] DISABLED - Manual rotation control");
@@ -700,32 +457,6 @@ public class RobotContainer {
                                         })
                                 .ignoringDisable(true) // let you toggle while Disabled
                         );
-
-        // ========== PREDICTIVE STEERING TOGGLE ==========
-        // Hold Y button for 3 seconds to toggle predictive wheel positioning
-        joystick.y()
-                .debounce(3.0)
-                .onTrue(
-                        Commands.runOnce(
-                                () -> {
-                                    predictiveSteeringEnabled = !predictiveSteeringEnabled;
-                                    if (predictiveSteeringEnabled) {
-                                        // Reset prediction state when enabling
-                                        m_lastDriveDirection = new Rotation2d();
-                                        m_predictedDirection = new Rotation2d();
-                                        m_timeAtStop = 0.0;
-                                        m_isPredicting = false;
-                                        m_hasRecordedDirection = false;
-
-                                        System.out.println(
-                                                "[PredictiveSteering] ENABLED - Wheels will pre-position for next move");
-                                        Haptics.buzzOK(joystick).schedule();
-                                    } else {
-                                        System.out.println(
-                                                "[PredictiveSteering] DISABLED - Standard wheel control");
-                                        Haptics.buzzShort(joystick).schedule();
-                                    }
-                                }));
 
         // ========== HEADING LOCK TOGGLE ==========
         // Hold X button for 3 seconds to toggle heading lock

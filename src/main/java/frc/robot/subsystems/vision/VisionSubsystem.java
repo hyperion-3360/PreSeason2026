@@ -34,6 +34,10 @@ public class VisionSubsystem extends SubsystemBase {
     private double m_lastTargetSeenTime = edu.wpi.first.wpilibj.Timer.getFPGATimestamp();
     private TargetPriority m_targetPriority = TargetPriority.BALANCED;
     private boolean m_targetLocked = false; // Prevents target switching during alignment
+    private boolean m_visionUpdatesEnabled = true; // Can disable to prevent odometry interference
+
+    // Performance optimization: Cache timestamp to reduce hardware I/O calls during periodic()
+    private double m_currentTime = 0;
 
     // Priority chooser for SmartDashboard
     private final SendableChooser<TargetPriority> m_priorityChooser = new SendableChooser<>();
@@ -121,6 +125,9 @@ public class VisionSubsystem extends SubsystemBase {
 
     @Override
     public void periodic() {
+        // Cache timestamp once per cycle to reduce hardware I/O calls
+        m_currentTime = edu.wpi.first.wpilibj.Timer.getFPGATimestamp();
+
         // Update priority mode from SmartDashboard chooser
         TargetPriority selectedPriority = m_priorityChooser.getSelected();
         if (selectedPriority != null && selectedPriority != m_targetPriority) {
@@ -141,12 +148,16 @@ public class VisionSubsystem extends SubsystemBase {
             m_visionSim.update(currentPose);
         }
 
-        // Update all cameras
-        for (var camera : m_cameras) {
+        // Update all cameras - optimized single-loop iteration combining update and telemetry
+        // This improves cache locality and reduces loop overhead by processing each camera once
+        for (int i = 0; i < m_cameras.size(); i++) {
+            var camera = m_cameras.get(i);
             camera.update(currentPose);
 
             // If camera has a pose estimate, add it to drivetrain
-            if (camera.isConnected()) {
+            // Skip vision updates if disabled (e.g., during auto-align to prevent field-centric
+            // drift)
+            if (camera.isConnected() && m_visionUpdatesEnabled) {
                 camera.getLatestPose()
                         .ifPresent(
                                 pose -> {
@@ -156,6 +167,23 @@ public class VisionSubsystem extends SubsystemBase {
                                             camera.getStdDevs());
                                 });
             }
+
+            // Update telemetry for this camera immediately (better cache locality)
+            String prefix = "Vision/Camera " + i + " (" + camera.getName() + ")/";
+            SmartDashboard.putBoolean(prefix + "Connected", camera.isConnected());
+            SmartDashboard.putBoolean(prefix + "Has Target", camera.getBestTarget().isPresent());
+
+            camera.getBestTarget()
+                    .ifPresent(
+                            target -> {
+                                SmartDashboard.putNumber(
+                                        prefix + "Target ID", target.getFiducialId());
+                                SmartDashboard.putNumber(
+                                        prefix + "Distance",
+                                        target.getBestCameraToTarget().getTranslation().getNorm());
+                                SmartDashboard.putNumber(
+                                        prefix + "Ambiguity", target.getPoseAmbiguity());
+                            });
         }
 
         // Update target tracking
@@ -186,25 +214,30 @@ public class VisionSubsystem extends SubsystemBase {
 
     /** Updates which AprilTag we're tracking/locked onto. */
     private void updateTargetTracking() {
-        // If target is locked, don't switch to a different tag
+        // If target is locked, check ALL cameras to see if locked target is visible
         if (m_targetLocked && m_targetTagId != -1) {
-            // Just update last seen time if we still see the locked target
+            boolean foundInAnyCamera = false;
             for (var camera : m_cameras) {
                 Optional<PhotonTrackedTarget> target = camera.getBestTarget();
                 if (target.isPresent() && target.get().getFiducialId() == m_targetTagId) {
-                    m_lastTargetSeenTime = edu.wpi.first.wpilibj.Timer.getFPGATimestamp();
-                    return; // Keep locked target
+                    m_lastTargetSeenTime = m_currentTime;
+                    foundInAnyCamera = true;
+                    break; // Found it, no need to keep searching
                 }
             }
 
-            // If we haven't seen locked target for too long, unlock and search
-            if (edu.wpi.first.wpilibj.Timer.getFPGATimestamp() - m_lastTargetSeenTime
-                    > Constants.VisionConstants.TARGET_LOCK_TIMEOUT) {
-                System.out.println("[Vision] Lost locked target " + m_targetTagId + ", unlocking");
+            // Only timeout if not found in ANY camera
+            if (!foundInAnyCamera
+                    && m_currentTime - m_lastTargetSeenTime
+                            > Constants.VisionConstants.TARGET_LOCK_TIMEOUT) {
+                System.out.println(
+                        "[Vision] Lost locked target "
+                                + m_targetTagId
+                                + " in all cameras, unlocking");
                 m_targetLocked = false;
                 m_targetTagId = -1;
             }
-            return;
+            return; // Don't update target while locked
         }
 
         PhotonTrackedTarget bestTarget = null;
@@ -258,10 +291,10 @@ public class VisionSubsystem extends SubsystemBase {
         // Update target tracking based on best target found
         if (bestTarget != null) {
             m_targetTagId = bestTarget.getFiducialId();
-            m_lastTargetSeenTime = edu.wpi.first.wpilibj.Timer.getFPGATimestamp();
+            m_lastTargetSeenTime = m_currentTime;
         } else {
             // Clear target if we haven't seen it recently
-            if (edu.wpi.first.wpilibj.Timer.getFPGATimestamp() - m_lastTargetSeenTime
+            if (m_currentTime - m_lastTargetSeenTime
                     > Constants.VisionConstants.TARGET_LOCK_TIMEOUT) {
                 m_targetTagId = -1;
             }
@@ -341,26 +374,8 @@ public class VisionSubsystem extends SubsystemBase {
         SmartDashboard.putBoolean("Vision/Has Target", hasTarget());
         SmartDashboard.putBoolean("Vision/Target Locked", m_targetLocked);
 
-        // Individual camera data
-        for (int i = 0; i < m_cameras.size(); i++) {
-            var camera = m_cameras.get(i);
-            String prefix = "Vision/Camera " + i + " (" + camera.getName() + ")/";
-
-            SmartDashboard.putBoolean(prefix + "Connected", camera.isConnected());
-            SmartDashboard.putBoolean(prefix + "Has Target", camera.getBestTarget().isPresent());
-
-            camera.getBestTarget()
-                    .ifPresent(
-                            target -> {
-                                SmartDashboard.putNumber(
-                                        prefix + "Target ID", target.getFiducialId());
-                                SmartDashboard.putNumber(
-                                        prefix + "Distance",
-                                        target.getBestCameraToTarget().getTranslation().getNorm());
-                                SmartDashboard.putNumber(
-                                        prefix + "Ambiguity", target.getPoseAmbiguity());
-                            });
-        }
+        // Individual camera telemetry is now updated in the main camera loop (periodic method)
+        // for better performance and cache locality
     }
 
     // ========================= PUBLIC API =========================
@@ -389,6 +404,15 @@ public class VisionSubsystem extends SubsystemBase {
      * @param tagId The AprilTag ID to target
      */
     public void setTargetTag(int tagId) {
+        // Bounds check on tag ID to prevent array/lookup errors
+        if (tagId < 1 || tagId > 16) {
+            System.err.println(
+                    "[Vision] Error: Tag ID "
+                            + tagId
+                            + " out of valid range (1-16). Ignoring request.");
+            return;
+        }
+
         // Validate that the tag exists in the field layout
         if (Constants.tagLayout.getTagPose(tagId).isEmpty()) {
             System.err.println(
@@ -421,6 +445,24 @@ public class VisionSubsystem extends SubsystemBase {
     public void unlockTarget() {
         m_targetLocked = false;
         System.out.println("[Vision] Target unlocked");
+    }
+
+    /**
+     * Disables vision odometry updates to prevent field-centric drift during auto-align. Call this
+     * when starting auto-align.
+     */
+    public void disableVisionUpdates() {
+        m_visionUpdatesEnabled = false;
+        System.out.println(
+                "[Vision] Vision odometry updates DISABLED (preventing field-centric drift)");
+    }
+
+    /**
+     * Re-enables vision odometry updates after auto-align completes. Call this when ending
+     * auto-align.
+     */
+    public void enableVisionUpdates() {
+        m_visionUpdatesEnabled = true;
     }
 
     /**
@@ -507,25 +549,35 @@ public class VisionSubsystem extends SubsystemBase {
     }
 
     /**
+     * Gets the distance to the current target tag from any camera that can see it.
+     *
+     * @return Distance in meters, or empty if target not visible
+     */
+    private Optional<Double> getTargetDistance() {
+        if (m_targetTagId == -1) {
+            return Optional.empty();
+        }
+
+        for (var camera : m_cameras) {
+            Optional<PhotonTrackedTarget> target = camera.getBestTarget();
+            if (target.isPresent() && target.get().getFiducialId() == m_targetTagId) {
+                double distance = target.get().getBestCameraToTarget().getTranslation().getNorm();
+                return Optional.of(distance);
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    /**
      * Checks if the current target is within range for auto-aim operations.
      *
      * @return true if target exists and is within auto-aim range
      */
     public boolean isTargetInAutoAimRange() {
-        if (m_targetTagId == -1) {
-            return false;
-        }
-
-        // Find the current target across all cameras
-        for (var camera : m_cameras) {
-            Optional<PhotonTrackedTarget> target = camera.getBestTarget();
-            if (target.isPresent() && target.get().getFiducialId() == m_targetTagId) {
-                double distance = target.get().getBestCameraToTarget().getTranslation().getNorm();
-                return distance <= Constants.VisionConstants.MAX_AUTO_AIM_DISTANCE;
-            }
-        }
-
-        return false; // Target not currently visible
+        return getTargetDistance()
+                .map(dist -> dist <= Constants.VisionConstants.MAX_AUTO_AIM_DISTANCE)
+                .orElse(false);
     }
 
     /**
@@ -534,20 +586,9 @@ public class VisionSubsystem extends SubsystemBase {
      * @return true if target exists and is within auto-align range
      */
     public boolean isTargetInAutoAlignRange() {
-        if (m_targetTagId == -1) {
-            return false;
-        }
-
-        // Find the current target across all cameras
-        for (var camera : m_cameras) {
-            Optional<PhotonTrackedTarget> target = camera.getBestTarget();
-            if (target.isPresent() && target.get().getFiducialId() == m_targetTagId) {
-                double distance = target.get().getBestCameraToTarget().getTranslation().getNorm();
-                return distance <= Constants.VisionConstants.MAX_AUTO_ALIGN_DISTANCE;
-            }
-        }
-
-        return false; // Target not currently visible
+        return getTargetDistance()
+                .map(dist -> dist <= Constants.VisionConstants.MAX_AUTO_ALIGN_DISTANCE)
+                .orElse(false);
     }
 
     /**

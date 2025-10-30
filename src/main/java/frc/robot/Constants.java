@@ -70,6 +70,13 @@ public final class Constants {
         public static final double SCURVE_OMEGA_MAX_JERK = 200.0; // joystick units/s³
 
         public static final boolean SCURVE_ENABLED_DEFAULT = true;
+
+        // Universal speed limiter (0-100% of max speed)
+        // Applies to ALL drive modes: teleop with S-Curve, auto-align, auto-aim, etc.
+        // 100 = full speed, 50 = half speed, 0 = no movement
+        public static final double SPEED_LIMITER_PERCENT = 100.0; // Percentage of max speed (0-100)
+        // Pre-calculated scale factor (performance optimization - avoid division every cycle)
+        public static final double SPEED_LIMITER_SCALE = SPEED_LIMITER_PERCENT / 100.0;
     }
 
     /** Vision Subsystem Constants */
@@ -104,14 +111,21 @@ public final class Constants {
         public static final double MAX_AUTO_ALIGN_DISTANCE =
                 8.0; // meters (max distance for auto-align)
 
-        // Pose estimation standard deviations (lower = more trust)
-        public static final double SINGLE_TAG_STD_DEV_X = 4.0;
-        public static final double SINGLE_TAG_STD_DEV_Y = 4.0;
-        public static final double SINGLE_TAG_STD_DEV_THETA = 8.0;
+        // Pose estimation standard deviations (lower = more trust, higher = less trust)
+        // IMPORTANT: Higher values reduce vision influence, preventing drift from inaccurate
+        // measurements
 
-        public static final double MULTI_TAG_STD_DEV_X = 0.5;
-        public static final double MULTI_TAG_STD_DEV_Y = 0.5;
-        public static final double MULTI_TAG_STD_DEV_THETA = 1.0;
+        // Single tag - low confidence (used during auto-align when only 1 tag visible)
+        public static final double SINGLE_TAG_STD_DEV_X = 8.0; // Translation X (was 4.0)
+        public static final double SINGLE_TAG_STD_DEV_Y = 8.0; // Translation Y (was 4.0)
+        public static final double SINGLE_TAG_STD_DEV_THETA =
+                15.0; // Rotation (was 8.0) - key for drift prevention!
+
+        // Multi tag - higher confidence but still conservative to prevent drift
+        public static final double MULTI_TAG_STD_DEV_X = 1.0; // Translation X (was 0.5)
+        public static final double MULTI_TAG_STD_DEV_Y = 1.0; // Translation Y (was 0.5)
+        public static final double MULTI_TAG_STD_DEV_THETA =
+                6.0; // Rotation (was 1.0) - CRITICAL FIX for drift!
     }
 
     /** Auto-Align to AprilTag Constants */
@@ -137,19 +151,23 @@ public final class Constants {
                 MotionProfileType.TRAPEZOIDAL;
 
         // Robot dimensions
+        // IMPORTANT: Measure on your actual robot! Distance from rotation center to bumper OUTER
+        // edge
         public static final double ROBOT_CENTER_TO_FRONT_BUMPER =
-                Units.inchesToMeters(16.0); // Distance from robot center to front bumper edge
+                Units.inchesToMeters(
+                        18.0); // Distance from robot center to front bumper edge (MEASURE THIS!)
 
         // Default alignment distance (from FRONT BUMPER to tag)
         public static final double DEFAULT_ALIGN_DISTANCE = 1.0; // meters from bumper to tag
 
-        // Position and angle tolerances (tighter for better precision)
-        public static final double POSITION_TOLERANCE = 0.01; // 1 cm
-        public static final double ANGLE_TOLERANCE = Units.degreesToRadians(1.0); // 1 degree
+        // Position and angle tolerances (realistic for real robot with sensor noise)
+        // Too tight = endless oscillation, too loose = inaccurate
+        public static final double POSITION_TOLERANCE = 0.03; // 3 cm (was 1cm - too tight)
+        public static final double ANGLE_TOLERANCE = Units.degreesToRadians(2.0); // 2° (was 1°)
 
         // Velocity thresholds for completion (prevents overshoot from inertia)
-        public static final double VELOCITY_TOLERANCE = 0.1; // 10 cm/s - must be nearly stopped
-        public static final double ANGULAR_VELOCITY_TOLERANCE = 0.1; // 0.1 rad/s
+        public static final double VELOCITY_TOLERANCE = 0.02; // 2 cm/s - must be nearly stopped
+        public static final double ANGULAR_VELOCITY_TOLERANCE = 0.05; // 0.05 rad/s (~3 deg/s)
 
         // Translation PID (X and Y movement) - tuned for precision
         public static final double kP_TRANSLATION = 6.0;
@@ -164,6 +182,8 @@ public final class Constants {
         public static final double kD_ROTATION = 0.5;
         public static final double MAX_VELOCITY_ROTATION = 2.0 * Math.PI;
         public static final double MAX_ACCELERATION_ROTATION = 4.0 * Math.PI;
+
+        public static final MotionProfileType DEFAULT_PROFILE_TYPE = MotionProfileType.TRAPEZOIDAL;
 
         // Auto-aim while driving (driver controls translation, robot controls rotation)
         public static final double AUTO_AIM_kP = 4.0;
@@ -180,61 +200,24 @@ public final class Constants {
         public static final double ADAPTIVE_THRESHOLD_EXIT_CLOSE = 0.6; // Exit CLOSE mode at 0.6m
 
         // FAR gains (when distance > threshold) - Aggressive for speed
-        public static final double kP_TRANSLATION_FAR = 4.0; // Lower P (faster, less precise)
-        public static final double kD_TRANSLATION_FAR = 0.2; // Lower D (less damping)
-        public static final double kP_ROTATION_FAR = 5.0;
-        public static final double kD_ROTATION_FAR = 0.3;
+        public static final double kP_TRANSLATION_FAR = 3.0; // Lower P (faster, less precise)
+        public static final double kD_TRANSLATION_FAR = 0.15; // Lower D (less damping)
+        public static final double kP_ROTATION_FAR = 4.0; // Reduced from 5.0
+        public static final double kD_ROTATION_FAR = 0.25; // Reduced from 0.3
 
         // CLOSE gains (when distance < threshold) - Precise for accuracy
-        public static final double kP_TRANSLATION_CLOSE = 8.0; // Higher P (slower, more precise)
-        public static final double kD_TRANSLATION_CLOSE = 0.6; // Higher D (more damping)
-        public static final double kP_ROTATION_CLOSE = 10.0;
-        public static final double kD_ROTATION_CLOSE = 0.8;
+        // Reduced from (8.0, 0.6) to prevent shakiness on real robot
+        public static final double kP_TRANSLATION_CLOSE = 4.5; // Was 8.0 - too aggressive
+        public static final double kD_TRANSLATION_CLOSE = 0.4; // Was 0.6 - reduced damping
+        // Reduced from (10.0, 0.8) to prevent rotation oscillation
+        public static final double kP_ROTATION_CLOSE = 5.0; // Was 10.0 - MAJOR shakiness cause
+        public static final double kD_ROTATION_CLOSE = 0.5; // Was 0.8 - reduced damping
     }
 
     /** LED Strip Constants */
     public static class LEDConstants {
         public static final int kLEDPWMPort = 5; // PWM port for LED strip
         public static final int kLEDLength = 30; // Number of LEDs in the strip
-    }
-
-    /** Predictive Wheel Positioning Constants */
-    public static class PredictiveSteeringConstants {
-        // Master enable/disable (toggled by driver with Y button hold)
-        public static final boolean DEFAULT_ENABLED = false; // Start disabled
-
-        // Speed thresholds (m/s)
-        public static final double PREDICT_SPEED_THRESHOLD =
-                0.3; // Below this, prediction is active
-        public static final double STOPPED_SPEED_THRESHOLD = 0.2; // When robot is "stopped"
-        public static final double MIN_ROBOT_SPEED =
-                0.05; // Minimum speed to consider robot moving (avoid noise)
-        public static final double MIN_SPEED_FOR_RECORDING =
-                1.0; // Record direction above this speed
-
-        // Intent detection thresholds (after exponential scaling with factor 0.4)
-        // These values are calibrated for scaled joystick inputs, not raw values
-        public static final double INTENT_THRESHOLD =
-                0.216; // ~30% stick after scaling = driver has intent
-        public static final double CLEAR_INTENT_THRESHOLD =
-                0.4; // ~50% stick after scaling = strong intent
-        public static final double NEUTRAL_THRESHOLD =
-                0.064; // ~10% stick after scaling = neutral stick
-
-        // Joystick velocity detection (scaled units/second)
-        // Calibrated for exponentially scaled joystick values
-        // Example: moving stick from 20% to 30% raw in one frame (0.02s) = ~4.4 scaled units/sec
-        public static final double RAPID_STICK_MOVEMENT =
-                3.5; // How fast stick moves for "direction change" (after scaling)
-
-        // Timing
-        public static final double ZERO_POINT_DELAY = 0.5; // Seconds before X-pattern activates
-        public static final double PREDICTION_CONFIDENCE_TIME =
-                0.1; // Hold prediction for this long
-
-        // Safety limits
-        public static final double MAX_SPEED_FOR_PREDICTION =
-                2.0; // Don't predict above this speed (too dangerous)
     }
 
     /** Heading Lock Constants */
