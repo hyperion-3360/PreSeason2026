@@ -4,8 +4,13 @@
 
 package frc.robot.subsystems.leds;
 
+import static edu.wpi.first.units.Units.Percent;
+
 import edu.wpi.first.wpilibj.AddressableLED;
 import edu.wpi.first.wpilibj.AddressableLEDBuffer;
+import edu.wpi.first.wpilibj.LEDPattern;
+import edu.wpi.first.wpilibj.util.Color;
+import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 
 
@@ -27,12 +32,15 @@ public class LEDs extends SubsystemBase {
     m_ledBuffer = new AddressableLEDBuffer(kLedLength);
     m_led.setLength(kLedLength);
     m_led.start();
-
   }
 
   @Override
   public void periodic() {
     // Send the data to the led strip
     m_led.setData(m_ledBuffer);
+  }
+
+  public Command setPattern(LEDPattern pattern) {
+    return run(() -> pattern.atBrightness(Percent.of(50)).applyTo(m_ledBuffer));
   }
 }

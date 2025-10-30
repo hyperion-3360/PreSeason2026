@@ -16,6 +16,8 @@ import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
 import frc.robot.generated.TunerConstants;
+import frc.robot.subsystems.leds.LEDs;
+import frc.robot.subsystems.leds.Patterns;
 import frc.robot.subsystems.swerve.CommandSwerveDrivetrain;
 import frc.robot.subsystems.util.CalibrateAzimuthPersist;
 import frc.robot.subsystems.util.Diagnostics;
@@ -23,6 +25,8 @@ import frc.robot.subsystems.util.Haptics;
 import frc.robot.subsystems.util.SCurveLimiter;
 
 public class RobotContainer {
+    public static final LEDs m_leds = new LEDs();
+
     private double MaxSpeed =
             TunerConstants.kSpeedAt12Volts.in(MetersPerSecond); // kSpeedAt12Volts desired top speed
     private double MaxAngularRate =
@@ -167,6 +171,12 @@ public class RobotContainer {
         joystick.start()
                 .and(joystick.x())
                 .whileTrue(drivetrain.sysIdQuasistatic(Direction.kReverse));
+        // LED testing
+        joystick.povUp().onTrue(m_leds.setPattern(Patterns.Solid.WHITE));
+        joystick.povRight().onTrue(m_leds.setPattern(Patterns.Solid.ORANGE));
+        joystick.povDown().onTrue(m_leds.setPattern(Patterns.Solid.PURPLE));
+        joystick.povLeft().onTrue(m_leds.setPattern(Patterns.Solid.OFF));
+        
 
         // reset the field-centric heading on left bumper press
         joystick.leftBumper().onTrue(drivetrain.runOnce(() -> drivetrain.seedFieldCentric()));

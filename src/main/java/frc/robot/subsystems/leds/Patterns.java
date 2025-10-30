@@ -10,7 +10,15 @@ import edu.wpi.first.wpilibj.util.Color;
 /** Colors and moving colors (currently untuned) */
 public class Patterns {
     //Solid colors
-    public static class SolidColors {
-
+    public static class Solid {
+        public static final LEDPattern ORANGE = LEDPattern.solid(Color.kOrangeRed);
+        public static final LEDPattern WHITE = LEDPattern.solid(Color.kWhite);
+        public static final LEDPattern BLUE = LEDPattern.solid(Color.kBlue);
+        public static final LEDPattern GREEN = LEDPattern.solid(Color.kLime);
+        public static final LEDPattern YELLOW = LEDPattern.solid(Color.kYellow);
+        public static final LEDPattern PURPLE = LEDPattern.solid(Color.kPurple);
+        public static final LEDPattern RED = LEDPattern.solid(Color.kRed);
+        public static final LEDPattern CYAN = LEDPattern.solid(Color.kCyan);
+        public static final LEDPattern OFF = LEDPattern.solid(Color.kBlack);
     }
 }
