@@ -163,8 +163,8 @@ public final class Constants {
         public static final double ANGLE_TOLERANCE = Units.degreesToRadians(1.0); // 1 degree
 
         // Velocity thresholds for completion (prevents overshoot from inertia)
-        public static final double VELOCITY_TOLERANCE = 0.1; // 10 cm/s - must be nearly stopped
-        public static final double ANGULAR_VELOCITY_TOLERANCE = 0.1; // 0.1 rad/s
+        public static final double VELOCITY_TOLERANCE = 0.02; // 2 cm/s - must be nearly stopped
+        public static final double ANGULAR_VELOCITY_TOLERANCE = 0.05; // 0.05 rad/s (~3 deg/s)
 
         // Translation PID (X and Y movement) - tuned for precision
         public static final double kP_TRANSLATION = 6.0;
