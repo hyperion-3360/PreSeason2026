@@ -575,10 +575,14 @@ public class RobotContainer {
                 .onTrue(
                         Commands.runOnce(
                                 () -> {
+                                // prevents vision from "correcting" robot pose when reset
+                                    vision.disableVisionUpdates();
+                                    
                                     drivetrain.seedFieldCentric();
                                     System.out.println(
                                             "[Field-Centric] RESET - Robot forward is now field forward");
                                     Haptics.buzzOK(joystick).schedule();
+                                    vision.enableVisionUpdates();
                                 }));
 
         drivetrain.registerTelemetry(logger::telemeterize);
