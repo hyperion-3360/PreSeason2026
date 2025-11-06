@@ -1,61 +1,140 @@
-// Copyright (c) FIRST and other WPILib contributors.
-// Open Source Software; you can modify and/or share it under the terms of
-// the WPILib BSD license file in the root directory of this project.
-
 package frc.robot;
 
 import static edu.wpi.first.units.Units.*;
 
+import com.ctre.phoenix6.swerve.SwerveDrivetrain.SwerveDriveState;
 import com.ctre.phoenix6.swerve.SwerveModule.DriveRequestType;
 import com.ctre.phoenix6.swerve.SwerveRequest;
 import edu.wpi.first.math.MathUtil;
+import edu.wpi.first.math.controller.PIDController;
+import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.wpilibj.RobotBase;
+import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
 import frc.robot.generated.TunerConstants;
+import frc.robot.subsystems.commands.AlignToTagCommand;
 import frc.robot.subsystems.swerve.CommandSwerveDrivetrain;
+import frc.robot.subsystems.util.BrownoutProtection;
 import frc.robot.subsystems.util.CalibrateAzimuthPersist;
 import frc.robot.subsystems.util.Diagnostics;
+import frc.robot.subsystems.util.ExponentialScale;
 import frc.robot.subsystems.util.Haptics;
 import frc.robot.subsystems.util.SCurveLimiter;
+import frc.robot.subsystems.vision.VisionSubsystem;
+import org.littletonrobotics.junction.Logger;
 
 public class RobotContainer {
     private double MaxSpeed =
             TunerConstants.kSpeedAt12Volts.in(MetersPerSecond); // kSpeedAt12Volts desired top speed
     private double MaxAngularRate =
-            RotationsPerSecond.of(0.75)
-                    .in(RadiansPerSecond); // 3/4 of a rotation per second max angular velocity
-    private double deadBandJoyStick = 0.06;
+            RotationsPerSecond.of(Constants.DriveConstants.MAX_ANGULAR_RATE_TELEOP)
+                    .in(RadiansPerSecond); // Max angular velocity from Constants
 
-    // VMax Units: (joystick units) / s, AMax Units: (joystick units) / s², JMax Units: (joystick
-    // units) / s³
-    private final SCurveLimiter vxLim = new SCurveLimiter(1.0, 6.0, 120.0);
-    private final SCurveLimiter vyLim = new SCurveLimiter(1.0, 6.0, 120.0);
-    private final SCurveLimiter omLim = new SCurveLimiter(1.0, 8.0, 200.0);
+    // Controller - declared early for brownout protection
+    private final CommandXboxController joystick =
+            new CommandXboxController(Constants.OIConstants.DRIVER_CONTROLLER_PORT);
 
-    // Toggle flag
-    private boolean sCurveEnabled = true;
+    // Battery brownout protection with haptic feedback
+    private final BrownoutProtection brownoutProtection = new BrownoutProtection(joystick);
+
+    // Exponential scaling for joystick inputs - applied BEFORE S-curve
+    private final ExponentialScale expScale =
+            new ExponentialScale(Constants.DriveConstants.JOYSTICK_EXPONENTIAL_FACTOR);
+
+    // S-Curve motion limiters - values from Constants.DriveConstants
+    private final SCurveLimiter vxLim =
+            new SCurveLimiter(
+                    Constants.DriveConstants.SCURVE_VX_MAX_VELOCITY,
+                    Constants.DriveConstants.SCURVE_VX_MAX_ACCEL,
+                    Constants.DriveConstants.SCURVE_VX_MAX_JERK);
+    private final SCurveLimiter vyLim =
+            new SCurveLimiter(
+                    Constants.DriveConstants.SCURVE_VY_MAX_VELOCITY,
+                    Constants.DriveConstants.SCURVE_VY_MAX_ACCEL,
+                    Constants.DriveConstants.SCURVE_VY_MAX_JERK);
+    private final SCurveLimiter omLim =
+            new SCurveLimiter(
+                    Constants.DriveConstants.SCURVE_OMEGA_MAX_VELOCITY,
+                    Constants.DriveConstants.SCURVE_OMEGA_MAX_ACCEL,
+                    Constants.DriveConstants.SCURVE_OMEGA_MAX_JERK);
+
+    // Toggle flags
+    private boolean sCurveEnabled = Constants.DriveConstants.SCURVE_ENABLED_DEFAULT;
+    private boolean autoAimEnabled = false;
+    private boolean headingLockEnabled = Constants.HeadingLockConstants.DEFAULT_ENABLED;
+    private boolean verboseLoggingEnabled = false; // Toggle for detailed logs (performance)
+
+    // Performance optimization: Cache drivetrain state to avoid multiple CAN bus calls per cycle
+    private SwerveDriveState m_cachedDrivetrainState = null;
+
+    // Heading Lock state
+    private Rotation2d m_lockedHeading = new Rotation2d(); // Heading to maintain
+    private boolean m_headingLocked = false; // Is heading currently locked
+
+    // Auto-aim PID controller
+    private final PIDController autoAimPID =
+            new PIDController(
+                    Constants.AutoAlignConstants.AUTO_AIM_kP,
+                    Constants.AutoAlignConstants.AUTO_AIM_kI,
+                    Constants.AutoAlignConstants.AUTO_AIM_kD);
+
+    // Heading lock PID controller
+    private final PIDController headingLockPID =
+            new PIDController(
+                    Constants.HeadingLockConstants.kP,
+                    Constants.HeadingLockConstants.kI,
+                    Constants.HeadingLockConstants.kD);
+
+    // Motion profile chooser for alignment
+    private final SendableChooser<Constants.AutoAlignConstants.MotionProfileType>
+            alignmentProfileChooser = new SendableChooser<>();
+
+    {
+        // Configure auto-aim PID
+        autoAimPID.enableContinuousInput(-Math.PI, Math.PI);
+        autoAimPID.setTolerance(Constants.AutoAlignConstants.AUTO_AIM_TOLERANCE);
+
+        // Configure heading lock PID
+        headingLockPID.enableContinuousInput(-Math.PI, Math.PI);
+        headingLockPID.setTolerance(
+                Math.toRadians(Constants.HeadingLockConstants.LOCK_TOLERANCE_DEGREES));
+
+        // Configure alignment profile chooser
+        alignmentProfileChooser.setDefaultOption(
+                "Trapezoidal", Constants.AutoAlignConstants.MotionProfileType.TRAPEZOIDAL);
+        alignmentProfileChooser.addOption(
+                "S-Curve", Constants.AutoAlignConstants.MotionProfileType.EXPONENTIAL);
+        SmartDashboard.putData("AutoAlign/Motion Profile", alignmentProfileChooser);
+    }
+
+    /**
+     * Gets the selected alignment motion profile.
+     *
+     * @return The selected motion profile type
+     */
+    public Constants.AutoAlignConstants.MotionProfileType getAlignmentProfile() {
+        Constants.AutoAlignConstants.MotionProfileType selected =
+                alignmentProfileChooser.getSelected();
+        return selected != null ? selected : Constants.AutoAlignConstants.DEFAULT_MOTION_PROFILE;
+    }
 
     /* Setting up bindings for necessary control of the swerve drive platform */
     private final SwerveRequest.FieldCentric drive =
             new SwerveRequest.FieldCentric()
-                    .withDeadband(MaxSpeed * 0.1)
-                    .withRotationalDeadband(MaxAngularRate * 0.1) // Add a 10% deadband
                     .withDriveRequestType(
                             DriveRequestType
                                     .OpenLoopVoltage); // Use open-loop control for drive motors
 
-    private final SwerveRequest.SwerveDriveBrake brake = new SwerveRequest.SwerveDriveBrake();
-    private final SwerveRequest.PointWheelsAt point = new SwerveRequest.PointWheelsAt();
-
     private final Telemetry logger = new Telemetry(MaxSpeed);
 
-    private final CommandXboxController joystick = new CommandXboxController(0);
-
+    // Subsystems
     public final CommandSwerveDrivetrain drivetrain = TunerConstants.createDrivetrain();
+    public final VisionSubsystem vision = new VisionSubsystem(drivetrain);
 
     public RobotContainer() {
         configureBindings();
@@ -70,6 +149,74 @@ public class RobotContainer {
                 "BR", RobotConfig.brEnc(), RobotConfig.brSteer(), RobotConfig.brDrive());
     }
 
+    /** Called periodically to update battery voltage monitoring and logging */
+    public void periodic() {
+        brownoutProtection.update();
+
+        // Cache drivetrain state once per cycle to avoid multiple CAN bus calls
+        m_cachedDrivetrainState = drivetrain.getState();
+
+        // Always log critical battery info (regardless of verbose toggle)
+        Logger.recordOutput("Battery/Voltage", brownoutProtection.getVoltage());
+        Logger.recordOutput("Battery/Status", brownoutProtection.getStatus().toString());
+        Logger.recordOutput("Battery/SpeedScale", brownoutProtection.getSpeedScaleFactor());
+        Logger.recordOutput("Battery/IsCritical", brownoutProtection.isCritical());
+
+        // Verbose logging (toggle to reduce performance impact)
+        if (verboseLoggingEnabled) {
+            // Log driver inputs (raw, after deadband)
+            Logger.recordOutput("Driver/LeftY", joystick.getLeftY());
+            Logger.recordOutput("Driver/LeftX", joystick.getLeftX());
+            Logger.recordOutput("Driver/RightX", joystick.getRightX());
+            Logger.recordOutput("Driver/LeftTrigger", joystick.getLeftTriggerAxis());
+            Logger.recordOutput("Driver/RightTrigger", joystick.getRightTriggerAxis());
+
+            // Log control modes
+            Logger.recordOutput("RobotState/SCurveEnabled", sCurveEnabled);
+            Logger.recordOutput("RobotState/AutoAimEnabled", autoAimEnabled);
+            Logger.recordOutput("RobotState/HeadingLockEnabled", headingLockEnabled);
+
+            // Log heading lock state
+            Logger.recordOutput("HeadingLock/Locked", m_headingLocked);
+            Logger.recordOutput("HeadingLock/LockedHeading", m_lockedHeading.getDegrees());
+            // Use cached drivetrain state to avoid extra CAN bus call
+            if (m_cachedDrivetrainState != null && m_cachedDrivetrainState.Pose != null) {
+                Logger.recordOutput(
+                        "HeadingLock/CurrentHeading",
+                        m_cachedDrivetrainState.Pose.getRotation().getDegrees());
+                Logger.recordOutput(
+                        "HeadingLock/Error",
+                        m_lockedHeading
+                                .minus(m_cachedDrivetrainState.Pose.getRotation())
+                                .getDegrees());
+            }
+
+            // SmartDashboard telemetry
+            SmartDashboard.putBoolean("Drive/Heading Lock", headingLockEnabled);
+            SmartDashboard.putBoolean("Drive/Heading Locked", m_headingLocked);
+            if (m_headingLocked) {
+                SmartDashboard.putNumber("Drive/Locked Heading", m_lockedHeading.getDegrees());
+            }
+
+            // Log max speeds (useful for seeing brownout effects)
+            Logger.recordOutput("RobotState/MaxSpeed", MaxSpeed);
+            Logger.recordOutput("RobotState/MaxAngularRate", MaxAngularRate);
+
+            // Log speed limiter status
+            Logger.recordOutput(
+                    "RobotState/SpeedLimiterPercent",
+                    Constants.DriveConstants.SPEED_LIMITER_PERCENT);
+            SmartDashboard.putNumber(
+                    "Drive/Speed Limiter %", Constants.DriveConstants.SPEED_LIMITER_PERCENT);
+        }
+
+        // Always show verbose logging status
+        SmartDashboard.putBoolean("Debug/Verbose Logging", verboseLoggingEnabled);
+
+        // Show current SysId routine selection
+        SmartDashboard.putString("SysId/Current Routine", drivetrain.getCurrentSysIdRoutineName());
+    }
+
     private void configureBindings() {
         // Note that X is defined as forward according to WPILib convention,
         // and Y is defined as to the left according to WPILib convention.
@@ -77,30 +224,122 @@ public class RobotContainer {
                 drivetrain.applyRequest(
                         () -> {
                             double xRaw =
-                                    -MathUtil.applyDeadband(joystick.getLeftY(), deadBandJoyStick);
+                                    -MathUtil.applyDeadband(
+                                            joystick.getLeftY(),
+                                            Constants.OIConstants.JOYSTICK_DEADBAND);
                             double yRaw =
-                                    -MathUtil.applyDeadband(joystick.getLeftX(), deadBandJoyStick);
+                                    -MathUtil.applyDeadband(
+                                            joystick.getLeftX(),
+                                            Constants.OIConstants.JOYSTICK_DEADBAND);
                             double rRaw =
-                                    -MathUtil.applyDeadband(joystick.getRightX(), deadBandJoyStick);
+                                    -MathUtil.applyDeadband(
+                                            joystick.getRightX(),
+                                            Constants.OIConstants.JOYSTICK_DEADBAND);
+
+                            // Apply exponential scaling for finer control at low speeds
+                            double xScaled = expScale.calculate(xRaw);
+                            double yScaled = expScale.calculate(yRaw);
+                            double rScaled = expScale.calculate(rRaw);
 
                             double xCmd, yCmd, rCmd;
 
                             if (sCurveEnabled) {
-                                // (optional) shaping for finer center control
-                                double xs = Math.copySign(xRaw * xRaw, xRaw);
-                                double ys = Math.copySign(yRaw * yRaw, yRaw);
-                                double rs = Math.copySign(rRaw * rRaw, rRaw);
-
-                                xCmd = vxLim.calculate(xs) * MaxSpeed;
-                                yCmd = vyLim.calculate(ys) * MaxSpeed;
-                                rCmd = omLim.calculate(rs) * MaxAngularRate;
+                                // Apply S-curve motion profiling
+                                xCmd = vxLim.calculate(xScaled) * MaxSpeed;
+                                yCmd = vyLim.calculate(yScaled) * MaxSpeed;
+                                rCmd = omLim.calculate(rScaled) * MaxAngularRate;
                             } else {
-                                // Bypass filters
-                                xCmd = xRaw * MaxSpeed;
-                                yCmd = yRaw * MaxSpeed;
-                                rCmd = rRaw * MaxAngularRate;
+                                // Bypass S-curve filters but keep exponential scaling
+                                xCmd = xScaled * MaxSpeed;
+                                yCmd = yScaled * MaxSpeed;
+                                rCmd = rScaled * MaxAngularRate;
                             }
 
+                            // ================================================================
+                            // Use cached drivetrain state (already fetched in periodic())
+                            // ================================================================
+                            var drivetrainState = m_cachedDrivetrainState;
+
+                            // ================================================================
+                            // HEADING LOCK
+                            // ================================================================
+                            if (headingLockEnabled && !autoAimEnabled) {
+                                // Check if rotation stick is near center
+                                if (Math.abs(rRaw)
+                                        < Constants.HeadingLockConstants.ROTATION_DEADBAND) {
+                                    // Rotation stick centered - engage heading lock
+                                    if (drivetrainState != null && drivetrainState.Pose != null) {
+                                        if (!m_headingLocked) {
+                                            // First time entering lock mode - capture current
+                                            // heading
+                                            m_lockedHeading = drivetrainState.Pose.getRotation();
+                                            m_headingLocked = true;
+                                            headingLockPID.reset();
+                                        }
+
+                                        // Calculate correction to maintain locked heading
+                                        Rotation2d currentHeading =
+                                                drivetrainState.Pose.getRotation();
+                                        double correction =
+                                                headingLockPID.calculate(
+                                                        currentHeading.getRadians(),
+                                                        m_lockedHeading.getRadians());
+
+                                        // Apply correction with rate limiting
+                                        // PID output is already in rad/s, don't multiply by
+                                        // MaxAngularRate!
+                                        rCmd =
+                                                MathUtil.clamp(
+                                                        correction,
+                                                        -MaxAngularRate
+                                                                * Constants.HeadingLockConstants
+                                                                        .MAX_CORRECTION_RATE,
+                                                        MaxAngularRate
+                                                                * Constants.HeadingLockConstants
+                                                                        .MAX_CORRECTION_RATE);
+                                    }
+                                } else {
+                                    // Rotation stick active - unlock and use manual control
+                                    m_headingLocked = false;
+                                }
+                            }
+                            // ================================================================
+
+                            // Auto-aim mode: robot controls rotation, driver controls translation
+                            if (autoAimEnabled
+                                    && vision.hasTarget()
+                                    && vision.isTargetInAutoAimRange()) {
+                                // Reuse drivetrainState from above
+                                if (drivetrainState != null && drivetrainState.Pose != null) {
+                                    Rotation2d currentHeading = drivetrainState.Pose.getRotation();
+                                    Rotation2d targetAngle = vision.getAngleToTarget();
+
+                                    rCmd =
+                                            MathUtil.clamp(
+                                                    autoAimPID.calculate(
+                                                            currentHeading.getRadians(),
+                                                            targetAngle.getRadians()),
+                                                    -Constants.AutoAlignConstants
+                                                            .AUTO_AIM_MAX_ANGULAR_VELOCITY,
+                                                    Constants.AutoAlignConstants
+                                                            .AUTO_AIM_MAX_ANGULAR_VELOCITY);
+                                }
+                            }
+
+                            // Apply brownout protection to all commands (translation and rotation)
+                            double speedScale = brownoutProtection.getSpeedScaleFactor();
+                            xCmd *= speedScale;
+                            yCmd *= speedScale;
+                            rCmd *= speedScale;
+
+                            // ================================================================
+                            // UNIVERSAL SPEED LIMITER (applies to all drive modes)
+                            // ================================================================
+                            xCmd *= Constants.DriveConstants.SPEED_LIMITER_SCALE;
+                            yCmd *= Constants.DriveConstants.SPEED_LIMITER_SCALE;
+                            rCmd *= Constants.DriveConstants.SPEED_LIMITER_SCALE;
+
+                            // Return normal field-centric drive command
                             return drive.withVelocityX(xCmd)
                                     .withVelocityY(yCmd)
                                     .withRotationalRate(rCmd);
@@ -115,14 +354,72 @@ public class RobotContainer {
                                             vxLim.reset(0);
                                             vyLim.reset(0);
                                             omLim.reset(0);
+                                            m_cachedDrivetrainState = null; // Clear stale cache
                                         })
                                 .ignoringDisable(true));
 
-        // Might be used later, keeping it here for example.
-        /*joystick.a().whileTrue(drivetrain.applyRequest(() -> brake));
-        joystick.b().whileTrue(drivetrain.applyRequest(() ->
-            point.withModuleDirection(new Rotation2d(-joystick.getLeftY(), -joystick.getLeftX()))
-        ));*/
+        // ========== VISION ALIGNMENT ==========
+        // Right bumper: Align to AprilTag at 1 meter distance
+        joystick.rightBumper()
+                .onTrue(
+                        Commands.runOnce(
+                                () -> {
+                                    // Reset all driver assist states when starting auto-align
+                                    m_headingLocked = false;
+                                    headingLockPID.reset();
+                                }))
+                .whileTrue(
+                        AlignToTagCommand.withDefaultDistance(
+                                drivetrain, vision, this::getAlignmentProfile))
+                .onFalse(
+                        Commands.runOnce(
+                                () -> {
+                                    // Reset states again when alignment ends to ensure clean state
+                                    m_headingLocked = false;
+                                    headingLockPID.reset();
+
+                                    System.out.println(
+                                            "[Align] Button released - driver assists reset");
+                                },
+                                drivetrain));
+
+        // ========== AUTO-AIM TOGGLE ==========
+        // Hold both triggers (L2 + R2) for 3 seconds to toggle auto-aim mode
+        var bothTriggersPressed = joystick.leftTrigger().and(joystick.rightTrigger());
+
+        // Toggle after 3 second hold
+        bothTriggersPressed
+                .debounce(3.0)
+                .onTrue(
+                        Commands.runOnce(
+                                () -> {
+                                    autoAimEnabled = !autoAimEnabled;
+                                    if (autoAimEnabled) {
+                                        autoAimPID.reset();
+                                        vision.lockTarget();
+
+                                        // Reset driver assists when enabling auto-aim
+                                        m_headingLocked = false;
+                                        headingLockPID.reset();
+
+                                        System.out.println(
+                                                "[Auto-Aim] ENABLED - Robot will auto-rotate to closest AprilTag");
+                                        Haptics.buzzOK(joystick).schedule();
+                                    } else {
+                                        autoAimPID.reset();
+                                        vision.unlockTarget();
+
+                                        // Reset driver assists when disabling auto-aim
+                                        m_headingLocked = false;
+                                        headingLockPID.reset();
+
+                                        System.out.println(
+                                                "[Auto-Aim] DISABLED - Manual rotation control");
+                                        Haptics.buzzShort(joystick).schedule();
+                                    }
+                                }));
+
+        // ========== S-CURVE TOGGLE ==========
         joystick.a()
                 .onTrue(
                         Commands.runOnce(
@@ -135,18 +432,22 @@ public class RobotContainer {
                                                 double xRaw =
                                                         -MathUtil.applyDeadband(
                                                                 joystick.getLeftY(),
-                                                                deadBandJoyStick);
+                                                                Constants.OIConstants
+                                                                        .JOYSTICK_DEADBAND);
                                                 double yRaw =
                                                         -MathUtil.applyDeadband(
                                                                 joystick.getLeftX(),
-                                                                deadBandJoyStick);
+                                                                Constants.OIConstants
+                                                                        .JOYSTICK_DEADBAND);
                                                 double rRaw =
                                                         -MathUtil.applyDeadband(
                                                                 joystick.getRightX(),
-                                                                deadBandJoyStick);
-                                                vxLim.reset(xRaw);
-                                                vyLim.reset(yRaw);
-                                                omLim.reset(rRaw);
+                                                                Constants.OIConstants
+                                                                        .JOYSTICK_DEADBAND);
+                                                // Apply exponential scaling before seeding filters
+                                                vxLim.reset(expScale.calculate(xRaw));
+                                                vyLim.reset(expScale.calculate(yRaw));
+                                                omLim.reset(expScale.calculate(rRaw));
                                             }
 
                                             sCurveEnabled = newState;
@@ -157,22 +458,139 @@ public class RobotContainer {
                                 .ignoringDisable(true) // let you toggle while Disabled
                         );
 
-        // Run SysId routines when holding back/start and X/Y.
-        // Note that each routine should be run exactly once in a single log.
-        joystick.back().and(joystick.y()).whileTrue(drivetrain.sysIdDynamic(Direction.kForward));
-        joystick.back().and(joystick.x()).whileTrue(drivetrain.sysIdDynamic(Direction.kReverse));
-        joystick.start()
-                .and(joystick.y())
-                .whileTrue(drivetrain.sysIdQuasistatic(Direction.kForward));
-        joystick.start()
-                .and(joystick.x())
-                .whileTrue(drivetrain.sysIdQuasistatic(Direction.kReverse));
+        // ========== HEADING LOCK TOGGLE ==========
+        // Hold X button for 3 seconds to toggle heading lock
+        joystick.x()
+                .debounce(3.0)
+                .onTrue(
+                        Commands.runOnce(
+                                () -> {
+                                    headingLockEnabled = !headingLockEnabled;
+                                    if (headingLockEnabled) {
+                                        // Reset heading lock state when enabling
+                                        m_lockedHeading = new Rotation2d();
+                                        m_headingLocked = false;
+                                        headingLockPID.reset();
 
-        // reset the field-centric heading on left bumper press
-        joystick.leftBumper().onTrue(drivetrain.runOnce(() -> drivetrain.seedFieldCentric()));
+                                        System.out.println(
+                                                "[HeadingLock] ENABLED - Robot will maintain heading when rotation stick centered");
+                                        Haptics.buzzOK(joystick).schedule();
+                                    } else {
+                                        // Unlock heading when disabling
+                                        m_headingLocked = false;
+
+                                        System.out.println(
+                                                "[HeadingLock] DISABLED - Manual rotation control");
+                                        Haptics.buzzShort(joystick).schedule();
+                                    }
+                                }));
+
+        // ========== VERBOSE LOGGING TOGGLE ==========
+        // POV Down to toggle verbose logging (performance optimization)
+        joystick.povDown()
+                .onTrue(
+                        Commands.runOnce(
+                                () -> {
+                                    verboseLoggingEnabled = !verboseLoggingEnabled;
+                                    if (verboseLoggingEnabled) {
+                                        System.out.println(
+                                                "[Debug] VERBOSE LOGGING ENABLED - Full telemetry active");
+                                        Haptics.buzzOK(joystick).schedule();
+                                    } else {
+                                        System.out.println(
+                                                "[Debug] VERBOSE LOGGING DISABLED - Reduced telemetry for performance");
+                                        Haptics.buzzShort(joystick).schedule();
+                                    }
+                                }));
+
+        // ========== SYSID ROUTINE SELECTOR ==========
+        // POV Left/Right to cycle between SysId routines
+        joystick.povLeft()
+                .onTrue(
+                        Commands.runOnce(
+                                () -> {
+                                    String routine = drivetrain.cycleSysIdRoutine();
+                                    System.out.println("[SysId] Selected routine: " + routine);
+                                    Haptics.buzzShort(joystick).schedule();
+                                }));
+
+        joystick.povRight()
+                .onTrue(
+                        Commands.runOnce(
+                                () -> {
+                                    String routine = drivetrain.cycleSysIdRoutine();
+                                    System.out.println("[SysId] Selected routine: " + routine);
+                                    Haptics.buzzShort(joystick).schedule();
+                                }));
+
+        // ========== SYSID AUTOMATIC SEQUENCE ==========
+        // Hold POV Up for 3 seconds to run complete SysId characterization
+        // Runs all 4 tests automatically: quasistatic forward/reverse, dynamic forward/reverse
+        // Use POV Left/Right to select routine type (Translation/Steer/Rotation)
+        joystick.povUp()
+                .debounce(3.0)
+                .onTrue(
+                        Commands.sequence(
+                                        Commands.runOnce(
+                                                () ->
+                                                        System.out.println(
+                                                                "[SysId] Starting "
+                                                                        + drivetrain
+                                                                                .getCurrentSysIdRoutineName()
+                                                                        + " characterization sequence...")),
+                                        Haptics.buzzOK(joystick),
+                                        Commands.waitSeconds(2.0), // Wait before starting
+
+                                        // Test 1: Quasistatic Forward
+                                        Commands.print("[SysId] Test 1/4: Quasistatic Forward"),
+                                        Haptics.buzzShort(joystick),
+                                        drivetrain.sysIdQuasistatic(Direction.kForward),
+                                        Commands.waitSeconds(1.0),
+
+                                        // Test 2: Quasistatic Reverse
+                                        Commands.print("[SysId] Test 2/4: Quasistatic Reverse"),
+                                        Haptics.buzzShort(joystick),
+                                        drivetrain.sysIdQuasistatic(Direction.kReverse),
+                                        Commands.waitSeconds(1.0),
+
+                                        // Test 3: Dynamic Forward
+                                        Commands.print("[SysId] Test 3/4: Dynamic Forward"),
+                                        Haptics.buzzShort(joystick),
+                                        drivetrain.sysIdDynamic(Direction.kForward),
+                                        Commands.waitSeconds(1.0),
+
+                                        // Test 4: Dynamic Reverse
+                                        Commands.print("[SysId] Test 4/4: Dynamic Reverse"),
+                                        Haptics.buzzShort(joystick),
+                                        drivetrain.sysIdDynamic(Direction.kReverse),
+                                        Commands.waitSeconds(1.0),
+
+                                        // Complete
+                                        Commands.print(
+                                                "[SysId] ✓ All characterization tests complete!"),
+                                        Haptics.buzzOK(joystick))
+                                .withTimeout(120.0) // 2 minute timeout for safety
+                                .finallyDo(
+                                        () ->
+                                                System.out.println(
+                                                        "[SysId] Sequence ended - check logs for data")));
+
+        // ========== FIELD-CENTRIC RESET ==========
+        // Press L1 (left bumper) twice quickly to reset field-centric heading
+        // (Double-tap prevents accidental resets)
+        joystick.leftBumper()
+                .onTrue(
+                        Commands.runOnce(
+                                () -> {
+                                    drivetrain.seedFieldCentric();
+                                    System.out.println(
+                                            "[Field-Centric] RESET - Robot forward is now field forward");
+                                    Haptics.buzzOK(joystick).schedule();
+                                }));
 
         drivetrain.registerTelemetry(logger::telemeterize);
 
+        // ========== CALIBRATION SEQUENCE ==========
         // Combo: hold X + Y + A + B for 3 seconds
         var zeroHold =
                 joystick.x().and(joystick.y()).and(joystick.a()).and(joystick.b()).debounce(3.0);
