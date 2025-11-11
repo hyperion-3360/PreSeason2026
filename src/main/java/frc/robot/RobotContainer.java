@@ -7,6 +7,7 @@ import com.ctre.phoenix6.swerve.SwerveRequest;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.wpilibj.RobotBase;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
@@ -67,6 +68,8 @@ public class RobotContainer {
     private boolean autoAimEnabled = false;
     private boolean headingLockEnabled = Constants.HeadingLockConstants.DEFAULT_ENABLED;
     private boolean verboseLoggingEnabled = false; // Toggle for detailed logs (performance)
+    private boolean driftEnabled = false;
+    private boolean inertiaEnabled = false;
 
     // Heading Lock state
     private Rotation2d m_lockedHeading = new Rotation2d(); // Heading to maintain
@@ -119,11 +122,15 @@ public class RobotContainer {
         return selected != null ? selected : Constants.AutoAlignConstants.DEFAULT_MOTION_PROFILE;
     }
 
+    // could be used for orbiting around a POI
+    private Translation2d m_swerveCenterOfRotation = Translation2d.kZero;
+
     /* Setting up bindings for necessary control of the swerve drive platform */
     private final SwerveRequest.FieldCentric drive =
             new SwerveRequest.FieldCentric()
                     .withDeadband(MaxSpeed * 0.1)
                     .withRotationalDeadband(MaxAngularRate * 0.1) // Add a 10% deadband
+                    .withCenterOfRotation(m_swerveCenterOfRotation)
                     .withDriveRequestType(
                             DriveRequestType
                                     .OpenLoopVoltage); // Use open-loop control for drive motors
@@ -135,6 +142,7 @@ public class RobotContainer {
     public final VisionSubsystem vision = new VisionSubsystem(drivetrain);
 
     public RobotContainer() {
+
         configureBindings();
 
         Diagnostics.bootDiagnostics(
@@ -318,6 +326,48 @@ public class RobotContainer {
                                 }
                             }
 
+                            // ================================================================
+
+                            // Swerve rotation around a module
+                            if (driftEnabled) {
+                                double joystickX = joystick.getLeftX();
+                                double joystickY = joystick.getLeftY();
+
+                                if (joystickX != 0 && joystickY != 0) {
+                                    int robotModulePos[][] = {
+                                        // 2 : BackLeft, 3 : BackRight, 0 : FrontLeft,
+                                        // 1 : FrontRight
+                                        {2, 3},
+                                        {0, 1}
+                                    };
+
+                                    // depending on controller axis sign gets the necessary module
+                                    int frontOrBack = (joystickY > 0) ? 1 : 0;
+                                    int leftOrRight = (joystickX > 0) ? 1 : 0;
+                                    m_swerveCenterOfRotation =
+                                            drivetrain
+                                                    .getModuleLocations()[
+                                                    robotModulePos[frontOrBack][leftOrRight]];
+
+                                    System.out.println(m_swerveCenterOfRotation);
+                                    System.out.println("x" + joystickX);
+                                    System.out.println("y" + joystickY);
+                                }
+                                // It'll basically do nothing since wheel speed is zero
+                                else m_swerveCenterOfRotation = Translation2d.kZero;
+
+                                // Transforms the translation into a rotation around an orbit
+                                // We can add a value to x and y translation to simulate inertia if
+                                // we want
+                                if (inertiaEnabled) {}
+                                rCmd = xCmd;
+                                xCmd = 0.0;
+                                yCmd = 0.0;
+                                System.out.println(rCmd);
+                            } else {
+                                m_swerveCenterOfRotation = Translation2d.kZero;
+                            }
+
                             // Apply brownout protection to all commands (translation and rotation)
                             double speedScale = brownoutProtection.getSpeedScaleFactor();
                             xCmd *= speedScale;
@@ -336,7 +386,8 @@ public class RobotContainer {
                             // Return normal field-centric drive command
                             return drive.withVelocityX(xCmd)
                                     .withVelocityY(yCmd)
-                                    .withRotationalRate(rCmd);
+                                    .withRotationalRate(rCmd)
+                                    .withCenterOfRotation(m_swerveCenterOfRotation);
                         }));
 
         // Idle while the robot is disabled. This ensures the configured
@@ -373,6 +424,23 @@ public class RobotContainer {
 
                                     System.out.println(
                                             "[Align] Button released - driver assists reset");
+                                },
+                                drivetrain));
+
+        // ========== SWERVE WHEEL LOCK ========== \\
+        joystick.leftStick()
+                .onTrue(
+                        Commands.runOnce(
+                                () -> {
+                                    driftEnabled = true;
+                                    System.out.println("[Drifting command] ENABLED");
+                                },
+                                drivetrain))
+                .onFalse(
+                        Commands.runOnce(
+                                () -> {
+                                    driftEnabled = false;
+                                    System.out.println("[Drifting command] DISABLED");
                                 },
                                 drivetrain));
 
@@ -575,9 +643,9 @@ public class RobotContainer {
                 .onTrue(
                         Commands.runOnce(
                                 () -> {
-                                // prevents vision from "correcting" robot pose when reset
+                                    // prevents vision from "correcting" robot pose when reset
                                     vision.disableVisionUpdates();
-                                    
+
                                     drivetrain.seedFieldCentric();
                                     System.out.println(
                                             "[Field-Centric] RESET - Robot forward is now field forward");
