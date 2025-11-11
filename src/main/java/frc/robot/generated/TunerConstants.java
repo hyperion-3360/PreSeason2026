@@ -200,6 +200,8 @@ public class TunerConstants {
     private static final Distance kBackRightXPos = Inches.of(-12.40625);
     private static final Distance kBackRightYPos = Inches.of(-12.40625);
 
+    private Pigeon2 pigeon = new Pigeon2(kPigeonId);
+
     public static final SwerveModuleConstants<
                     TalonFXConfiguration, TalonFXConfiguration, CANcoderConfiguration>
             FrontLeft =
@@ -339,5 +341,12 @@ public class TunerConstants {
                     visionStandardDeviation,
                     modules);
         }
+    }
+
+    public double getRotationAsDouble() {
+
+        double rot = pigeon.getRotation2d().getDegrees();
+
+        return rot;
     }
 }
