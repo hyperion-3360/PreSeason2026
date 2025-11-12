@@ -112,20 +112,15 @@ public final class Constants {
                 8.0; // meters (max distance for auto-align)
 
         // Pose estimation standard deviations (lower = more trust, higher = less trust)
-        // IMPORTANT: Higher values reduce vision influence, preventing drift from inaccurate
-        // measurements
+        // RESTORED from AutoAlignWorksGreat branch to fix auto-align precision
+        // Higher trust in vision = better pose estimation = accurate auto-align
+        public static final double SINGLE_TAG_STD_DEV_X = 4.0;
+        public static final double SINGLE_TAG_STD_DEV_Y = 4.0;
+        public static final double SINGLE_TAG_STD_DEV_THETA = 8.0;
 
-        // Single tag - low confidence (used during auto-align when only 1 tag visible)
-        public static final double SINGLE_TAG_STD_DEV_X = 8.0; // Translation X (was 4.0)
-        public static final double SINGLE_TAG_STD_DEV_Y = 8.0; // Translation Y (was 4.0)
-        public static final double SINGLE_TAG_STD_DEV_THETA =
-                15.0; // Rotation (was 8.0) - key for drift prevention!
-
-        // Multi tag - higher confidence but still conservative to prevent drift
-        public static final double MULTI_TAG_STD_DEV_X = 1.0; // Translation X (was 0.5)
-        public static final double MULTI_TAG_STD_DEV_Y = 1.0; // Translation Y (was 0.5)
-        public static final double MULTI_TAG_STD_DEV_THETA =
-                6.0; // Rotation (was 1.0) - CRITICAL FIX for drift!
+        public static final double MULTI_TAG_STD_DEV_X = 0.5;
+        public static final double MULTI_TAG_STD_DEV_Y = 0.5;
+        public static final double MULTI_TAG_STD_DEV_THETA = 1.0;
     }
 
     /** Auto-Align to AprilTag Constants */
@@ -151,14 +146,14 @@ public final class Constants {
                 MotionProfileType.TRAPEZOIDAL;
 
         // Robot dimensions
-        // IMPORTANT: Measure on your actual robot! Distance from rotation center to bumper OUTER
-        // edge
+        // RESTORED from AutoAlignWorksGreat: 16.0 inches from center to bumper
+        // If this is incorrect for your robot, measure and update accordingly
         public static final double ROBOT_CENTER_TO_FRONT_BUMPER =
-                Units.inchesToMeters(
-                        18.0); // Distance from robot center to front bumper edge (MEASURE THIS!)
+                Units.inchesToMeters(16.0); // Distance from robot center to front bumper edge
 
         // Default alignment distance (from FRONT BUMPER to tag)
-        public static final double DEFAULT_ALIGN_DISTANCE = 1.0; // meters from bumper to tag
+        // RESTORED from AutoAlignWorksGreat: 2.2 meters provides better stability
+        public static final double DEFAULT_ALIGN_DISTANCE = 2.2; // meters from bumper to tag
 
         // Position and angle tolerances (realistic for real robot with sensor noise)
         // Too tight = endless oscillation, too loose = inaccurate
