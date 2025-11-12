@@ -120,10 +120,6 @@ public class AlignToTagCommand extends Command {
         // Reset alignment flag
         m_alignmentStarted = false;
 
-        // Defensive: ensure vision updates are enabled at start (in case previous run left them
-        // disabled)
-        m_vision.enableVisionUpdates();
-
         // Lock the target to prevent switching during alignment
         m_vision.lockTarget();
 
@@ -151,16 +147,12 @@ public class AlignToTagCommand extends Command {
         m_targetPose = alignmentPose.get();
         m_hasValidTarget = true;
 
-        // Disable vision odometry updates to prevent field-centric drift during alignment
-        m_vision.disableVisionUpdates();
-
         // Get current pose with null safety check
         var drivetrainState = m_drivetrain.getState();
         if (drivetrainState == null || drivetrainState.Pose == null) {
             System.err.println(
                     "[AlignToTag] Warning: Drivetrain state or pose is null in initialize!");
             m_hasValidTarget = false;
-            m_vision.enableVisionUpdates(); // Re-enable since we disabled earlier
             m_vision.unlockTarget();
             return;
         }
@@ -172,7 +164,6 @@ public class AlignToTagCommand extends Command {
         if (targetPoseOpt.isEmpty()) {
             System.err.println("[AlignToTag] Warning: Target lost during initialization!");
             m_hasValidTarget = false;
-            m_vision.enableVisionUpdates(); // Re-enable since we disabled earlier
             m_vision.unlockTarget();
             return;
         }
@@ -345,9 +336,6 @@ public class AlignToTagCommand extends Command {
 
     @Override
     public void end(boolean interrupted) {
-        // Re-enable vision odometry updates
-        m_vision.enableVisionUpdates();
-
         // Unlock the target so it can switch again
         m_vision.unlockTarget();
 
