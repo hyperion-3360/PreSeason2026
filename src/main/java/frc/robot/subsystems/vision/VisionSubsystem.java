@@ -548,6 +548,33 @@ public class VisionSubsystem extends SubsystemBase {
         return Optional.empty();
     }
 
+    // ALTERNATIVE: Fix for intermittent "beyond max distance" bug
+    // Uncomment this version and comment out the one above to use odometry-based distance
+    // This is more reliable since it doesn't depend on which tag the camera currently sees
+    /*
+    private Optional<Double> getTargetDistance() {
+        if (m_targetTagId == -1) {
+            return Optional.empty();
+        }
+
+        // Get target tag pose from field layout
+        Optional<Pose2d> tagPose = getTargetPose();
+        if (tagPose.isEmpty()) {
+            return Optional.empty();
+        }
+
+        // Get current robot pose from odometry
+        var drivetrainState = m_drivetrain.getState();
+        if (drivetrainState == null || drivetrainState.Pose == null) {
+            return Optional.empty();
+        }
+
+        // Calculate distance from robot center to tag
+        double distance = drivetrainState.Pose.getTranslation().getDistance(tagPose.get().getTranslation());
+        return Optional.of(distance);
+    }
+    */
+
     /**
      * Checks if the current target is within range for auto-aim operations.
      *
