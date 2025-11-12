@@ -16,7 +16,7 @@ public final class RobotConfig {
     }
 
     /** Change this single line to switch robot hardware profile. */
-    public static final SwerveProfile ACTIVE_SWERVE = SwerveProfile.WCP_SWERVEX_CTRE;
+    public static final SwerveProfile ACTIVE_SWERVE = SwerveProfile.SDS_MK4I_L2;
 
     // ---- WCP Swerve X (current robot) ----
     private static final class WCP {
@@ -43,10 +43,10 @@ public final class RobotConfig {
     // ---- SDS MK4i L2 (new kit) ----
     private static final class MK4I {
         // TODO: Replace placeholders with real IDs when wired
-        static final int FL_DRIVE = WCP.FL_DRIVE, FL_STEER = WCP.FL_STEER, FL_ENC = WCP.FL_ENC;
-        static final int FR_DRIVE = WCP.FR_DRIVE, FR_STEER = WCP.FR_STEER, FR_ENC = WCP.FR_ENC;
-        static final int BL_DRIVE = WCP.BL_DRIVE, BL_STEER = WCP.BL_STEER, BL_ENC = WCP.BL_ENC;
-        static final int BR_DRIVE = WCP.BR_DRIVE, BR_STEER = WCP.BR_STEER, BR_ENC = WCP.BR_ENC;
+        static final int FL_DRIVE = 1, FL_STEER = 2, FL_ENC = WCP.FL_ENC;
+        static final int FR_DRIVE = 3, FR_STEER = 4, FR_ENC = WCP.FR_ENC;
+        static final int BL_DRIVE = 7, BL_STEER = 8, BL_ENC = WCP.BL_ENC;
+        static final int BR_DRIVE = 5, BR_STEER = 6, BR_ENC = WCP.BR_ENC;
 
         // TODO: Confirm/adjust inversions for MK4i once installed
         static final boolean FL_STEER_INV = WCP.FL_STEER_INV, FL_ENC_INV = WCP.FL_ENC_INV;
