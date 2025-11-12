@@ -25,6 +25,12 @@ public class BrownoutProtection {
     private static final double WARNING_INTERVAL = 5.0; // Warn every 5 seconds
     private final CommandXboxController m_controller;
 
+    // Spike filtering: ignore transient voltage drops during acceleration/deceleration
+    // Voltage drops during hard accel are normal and temporary - we only care about sustained low voltage
+    private double m_lowVoltageStartTime = -1.0; // When voltage first dropped below threshold
+    private static final double VOLTAGE_DEBOUNCE_TIME = 0.5; // Must be low for 500ms to trigger (tune if needed)
+    private BatteryStatus m_pendingStatus = BatteryStatus.GOOD; // Status waiting to be confirmed by debounce
+
     // ANSI color codes for console output
     private static final String ANSI_RESET = "\u001B[0m";
     private static final String ANSI_RED = "\u001B[31m";
@@ -44,18 +50,63 @@ public class BrownoutProtection {
     /**
      * Updates the battery status based on current voltage. Should be called periodically (every
      * robot loop).
+     *
+     * Uses debouncing to filter transient voltage drops during acceleration/deceleration.
+     * The battery must stay below a threshold for VOLTAGE_DEBOUNCE_TIME before triggering.
      */
     public void update() {
         double voltage = RobotController.getBatteryVoltage();
-        m_currentStatus = getBatteryStatus(voltage);
+        double currentTime = Timer.getFPGATimestamp();
+
+        // Get what the status WOULD be based on current voltage
+        BatteryStatus instantaneousStatus = getBatteryStatus(voltage);
+
+        // ===== SPIKE FILTERING: Debounce voltage drops =====
+        // Only trigger degraded states if voltage stays low for a sustained period
+        // This prevents false alarms during hard acceleration/deceleration
+
+        boolean statusWorsening = instantaneousStatus.ordinal() > m_currentStatus.ordinal();
+        boolean statusImproving = instantaneousStatus.ordinal() < m_currentStatus.ordinal();
+
+        if (statusImproving) {
+            // Status getting BETTER - apply immediately (no debounce for recovery)
+            m_currentStatus = instantaneousStatus;
+            m_lowVoltageStartTime = -1.0; // Reset timer
+        } else if (statusWorsening) {
+            // Status getting WORSE (GOOD -> WARNING -> CRITICAL -> BROWNOUT)
+            // Use debounce to filter transient voltage drops
+
+            boolean debounceInProgress = m_lowVoltageStartTime >= 0;
+
+            if (!debounceInProgress) {
+                // First time voltage dropped - start debounce timer
+                m_lowVoltageStartTime = currentTime;
+                m_pendingStatus = instantaneousStatus;
+            } else if (m_pendingStatus != instantaneousStatus) {
+                // Voltage dropped even further to a different worse status
+                // Restart timer to ensure this new worse status is also sustained
+                m_lowVoltageStartTime = currentTime;
+                m_pendingStatus = instantaneousStatus;
+            } else if (currentTime - m_lowVoltageStartTime >= VOLTAGE_DEBOUNCE_TIME) {
+                // Voltage has been consistently low for the full debounce period
+                // Confirm the status degradation
+                m_currentStatus = instantaneousStatus;
+                m_lowVoltageStartTime = -1.0; // Clear debounce timer
+            }
+            // else: Still waiting for debounce period to complete
+        } else {
+            // Status unchanged (instantaneousStatus == m_currentStatus)
+            // Clear any pending debounce since voltage is stable
+            m_lowVoltageStartTime = -1.0;
+        }
 
         // Check if status has changed or if it's time for a periodic warning
         boolean statusChanged = m_currentStatus != m_lastStatus;
-        boolean timeForWarning = Timer.getFPGATimestamp() - m_lastWarningTime > WARNING_INTERVAL;
+        boolean timeForWarning = currentTime - m_lastWarningTime > WARNING_INTERVAL;
 
         if (statusChanged || (m_currentStatus != BatteryStatus.GOOD && timeForWarning)) {
             logBatteryStatus(voltage);
-            m_lastWarningTime = Timer.getFPGATimestamp();
+            m_lastWarningTime = currentTime;
             m_lastStatus = m_currentStatus;
 
             // Send alert to driver station for critical/brownout conditions
