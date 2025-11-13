@@ -55,8 +55,11 @@ public class RobotContainer {
                             DriveRequestType
                                     .OpenLoopVoltage); // Use open-loop control for drive motors
 
-
-    private final PIDController m_snapToPid = new PIDController(Constants.SnapToConstants.kP, Constants.SnapToConstants.kI, Constants.SnapToConstants.kD);
+    private final PIDController m_snapToPid =
+            new PIDController(
+                    Constants.SnapToConstants.kP,
+                    Constants.SnapToConstants.kI,
+                    Constants.SnapToConstants.kD);
 
     private final SwerveRequest.SwerveDriveBrake brake = new SwerveRequest.SwerveDriveBrake();
     private final SwerveRequest.PointWheelsAt point = new SwerveRequest.PointWheelsAt();
@@ -96,13 +99,13 @@ public class RobotContainer {
 
                             double xCmd, yCmd, rCmd;
 
-                            if(!m_snappingTo){
+                            if (!m_snappingTo) {
                                 m_snapToPid.reset();
                             }
 
-                            if(m_snappingTo){
-                                m_snapToPid.calculate(m_snapTo.getCurrentAngle(),m_snapToSetpoint);
-                        }
+                            if (m_snappingTo) {
+                                m_snapToPid.calculate(m_snapTo.getCurrentAngle(), m_snapToSetpoint);
+                            }
 
                             if (sCurveEnabled) {
                                 // (optional) shaping for finer center control
@@ -122,8 +125,8 @@ public class RobotContainer {
 
                             return drive.withVelocityX(xCmd)
                                     .withVelocityY(yCmd)
-                                    .withRotationalRate(rCmd);                     
-                                }));
+                                    .withRotationalRate(rCmd);
+                        }));
 
         // Idle while the robot is disabled. This ensures the configured
         // neutral mode is applied to the drive motors while disabled.
@@ -178,10 +181,13 @@ public class RobotContainer {
 
         // Run SysId routines when holding back/start and X/Y.
         // Note that each routine should be run exactly once in a single log.
-        joystick.b().onTrue(Commands.runOnce(() -> {
-                m_snappingTo = true;
-                m_snapToSetpoint = m_snapTo.setWantedAngle(90);
-        }));
+        joystick.b()
+                .onTrue(
+                        Commands.runOnce(
+                                () -> {
+                                    m_snappingTo = true;
+                                    m_snapToSetpoint = m_snapTo.setWantedAngle(90);
+                                }));
         joystick.back().and(joystick.y()).whileTrue(drivetrain.sysIdDynamic(Direction.kForward));
         joystick.back().and(joystick.x()).whileTrue(drivetrain.sysIdDynamic(Direction.kReverse));
         joystick.start()

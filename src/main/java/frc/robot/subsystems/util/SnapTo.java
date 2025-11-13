@@ -7,14 +7,14 @@ import frc.robot.generated.TunerConstants;
 public class SnapTo extends Command {
     TunerConstants tunerConstants;
 
-    public double getCurrentAngle(){
+    public double getCurrentAngle() {
 
         var position = new Rotation2d(tunerConstants.getRotationAsDouble()).getDegrees();
-        
+
         return position;
     }
 
-    public double setWantedAngle(double angle){
+    public double setWantedAngle(double angle) {
 
         var setpoint = new Rotation2d(angle).getDegrees();
 
