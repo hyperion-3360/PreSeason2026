@@ -1,17 +1,20 @@
 package frc.robot.subsystems.util;
 
 import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.wpilibj2.command.Command;
-import frc.robot.generated.TunerConstants;
+import frc.robot.subsystems.swerve.CommandSwerveDrivetrain;
 
-public class SnapTo extends Command {
-    TunerConstants tunerConstants;
+public class SnapTo {
+    CommandSwerveDrivetrain m_drivetrain;
+
+    public SnapTo(CommandSwerveDrivetrain driveTrain) {
+        this.m_drivetrain = driveTrain;
+    }
 
     public double getCurrentAngle() {
 
-        var position = new Rotation2d(tunerConstants.getRotationAsDouble()).getDegrees();
+        var position = new Rotation2d(m_drivetrain.getPigeon2().getRotation3d().getMeasureAngle());
 
-        return position;
+        return position.getDegrees();
     }
 
     public double setWantedAngle(double angle) {

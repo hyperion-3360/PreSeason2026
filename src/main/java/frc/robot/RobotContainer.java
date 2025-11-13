@@ -36,10 +36,11 @@ public class RobotContainer {
 
     // VMax Units: (joystick units) / s, AMax Units: (joystick units) / s², JMax Units: (joystick
     // units) / s³
+    public final CommandSwerveDrivetrain drivetrain = TunerConstants.createDrivetrain();
     private final SCurveLimiter vxLim = new SCurveLimiter(1.0, 6.0, 120.0);
     private final SCurveLimiter vyLim = new SCurveLimiter(1.0, 6.0, 120.0);
     private final SCurveLimiter omLim = new SCurveLimiter(1.0, 8.0, 200.0);
-    private final SnapTo m_snapTo = new SnapTo();
+    private final SnapTo m_snapTo = new SnapTo(drivetrain);
 
     // Toggle flag
     private boolean sCurveEnabled = true;
@@ -68,7 +69,6 @@ public class RobotContainer {
 
     private final CommandXboxController joystick = new CommandXboxController(0);
 
-    public final CommandSwerveDrivetrain drivetrain = TunerConstants.createDrivetrain();
     public final Vision vision = new Vision();
 
     public RobotContainer() {
@@ -187,6 +187,8 @@ public class RobotContainer {
                                 () -> {
                                     m_snappingTo = true;
                                     m_snapToSetpoint = m_snapTo.setWantedAngle(90);
+                                    System.out.println(m_snapToSetpoint);
+                                    System.out.println(m_snappingTo);
                                 }));
         joystick.back().and(joystick.y()).whileTrue(drivetrain.sysIdDynamic(Direction.kForward));
         joystick.back().and(joystick.x()).whileTrue(drivetrain.sysIdDynamic(Direction.kReverse));
