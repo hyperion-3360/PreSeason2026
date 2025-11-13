@@ -9,6 +9,7 @@ import static edu.wpi.first.units.Units.*;
 import com.ctre.phoenix6.swerve.SwerveModule.DriveRequestType;
 import com.ctre.phoenix6.swerve.SwerveRequest;
 import edu.wpi.first.math.MathUtil;
+import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.wpilibj.RobotBase;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
@@ -21,6 +22,7 @@ import frc.robot.subsystems.util.CalibrateAzimuthPersist;
 import frc.robot.subsystems.util.Diagnostics;
 import frc.robot.subsystems.util.Haptics;
 import frc.robot.subsystems.util.SCurveLimiter;
+import frc.robot.subsystems.util.SnapTo;
 import frc.robot.vision.Vision;
 import frc.robot.vision.VisionCamera;
 
@@ -37,9 +39,12 @@ public class RobotContainer {
     private final SCurveLimiter vxLim = new SCurveLimiter(1.0, 6.0, 120.0);
     private final SCurveLimiter vyLim = new SCurveLimiter(1.0, 6.0, 120.0);
     private final SCurveLimiter omLim = new SCurveLimiter(1.0, 8.0, 200.0);
+    private final SnapTo m_snapTo = new SnapTo();
 
     // Toggle flag
     private boolean sCurveEnabled = true;
+    private boolean m_snappingTo = false;
+    private double m_snapToSetpoint;
 
     /* Setting up bindings for necessary control of the swerve drive platform */
     private final SwerveRequest.FieldCentric drive =
@@ -49,6 +54,9 @@ public class RobotContainer {
                     .withDriveRequestType(
                             DriveRequestType
                                     .OpenLoopVoltage); // Use open-loop control for drive motors
+
+
+    private final PIDController m_snapToPid = new PIDController(Constants.SnapToConstants.kP, Constants.SnapToConstants.kI, Constants.SnapToConstants.kD);
 
     private final SwerveRequest.SwerveDriveBrake brake = new SwerveRequest.SwerveDriveBrake();
     private final SwerveRequest.PointWheelsAt point = new SwerveRequest.PointWheelsAt();
@@ -88,6 +96,14 @@ public class RobotContainer {
 
                             double xCmd, yCmd, rCmd;
 
+                            if(!m_snappingTo){
+                                m_snapToPid.reset();
+                            }
+
+                            if(m_snappingTo){
+                                m_snapToPid.calculate(m_snapTo.getCurrentAngle(),m_snapToSetpoint);
+                        }
+
                             if (sCurveEnabled) {
                                 // (optional) shaping for finer center control
                                 double xs = Math.copySign(xRaw * xRaw, xRaw);
@@ -106,8 +122,8 @@ public class RobotContainer {
 
                             return drive.withVelocityX(xCmd)
                                     .withVelocityY(yCmd)
-                                    .withRotationalRate(rCmd);
-                        }));
+                                    .withRotationalRate(rCmd);                     
+                                }));
 
         // Idle while the robot is disabled. This ensures the configured
         // neutral mode is applied to the drive motors while disabled.
@@ -162,6 +178,10 @@ public class RobotContainer {
 
         // Run SysId routines when holding back/start and X/Y.
         // Note that each routine should be run exactly once in a single log.
+        joystick.b().onTrue(Commands.runOnce(() -> {
+                m_snappingTo = true;
+                m_snapToSetpoint = m_snapTo.setWantedAngle(90);
+        }));
         joystick.back().and(joystick.y()).whileTrue(drivetrain.sysIdDynamic(Direction.kForward));
         joystick.back().and(joystick.x()).whileTrue(drivetrain.sysIdDynamic(Direction.kReverse));
         joystick.start()

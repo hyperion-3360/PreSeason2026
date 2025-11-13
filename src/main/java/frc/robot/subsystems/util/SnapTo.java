@@ -1,6 +1,5 @@
 package frc.robot.subsystems.util;
 
-import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.wpilibj2.command.Command;
 import frc.robot.generated.TunerConstants;
@@ -8,11 +7,17 @@ import frc.robot.generated.TunerConstants;
 public class SnapTo extends Command {
     TunerConstants tunerConstants;
 
-    public boolean snapingTo = false;
+    public double getCurrentAngle(){
 
-    public SnapTo(double angle){
+        var position = new Rotation2d(tunerConstants.getRotationAsDouble()).getDegrees();
         
-        new Rotation2d(tunerConstants.getRotationAsDouble() + angle);
+        return position;
     }
 
+    public double setWantedAngle(double angle){
+
+        var setpoint = new Rotation2d(angle).getDegrees();
+
+        return setpoint;
+    }
 }
