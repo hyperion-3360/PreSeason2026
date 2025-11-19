@@ -189,4 +189,13 @@ public final class Constants {
             public static final double WARNING_MARGIN = 20.0; // degrees
         }
     }
+
+    public static class SnapToConstants {
+
+        public static final double kP = 0.0175;
+        public static final double kI = 0.0;
+        public static final double kD = 0.0;
+
+        public static final double kSnapToDeadband = .5;
+    }
 }

@@ -22,6 +22,7 @@ import frc.robot.subsystems.util.Diagnostics;
 import frc.robot.subsystems.util.ExponentialScale;
 import frc.robot.subsystems.util.Haptics;
 import frc.robot.subsystems.util.SCurveLimiter;
+import frc.robot.subsystems.util.SnapTo;
 import frc.robot.subsystems.vision.VisionSubsystem;
 import org.littletonrobotics.junction.Logger;
 
@@ -95,6 +96,17 @@ public class RobotContainer {
     public final CommandSwerveDrivetrain drivetrain = TunerConstants.createDrivetrain();
     public final VisionSubsystem vision = new VisionSubsystem(drivetrain);
 
+    private final SnapTo m_snapTo = new SnapTo(drivetrain);
+
+    private boolean m_snappingTo = false;
+    private double m_snapToSetpoint;
+
+    private final PIDController m_snapToPid =
+            new PIDController(
+                    Constants.SnapToConstants.kP,
+                    Constants.SnapToConstants.kI,
+                    Constants.SnapToConstants.kD);
+
     public RobotContainer() {
         configureBindings();
 
@@ -106,6 +118,8 @@ public class RobotContainer {
                 "BL", RobotConfig.blEnc(), RobotConfig.blSteer(), RobotConfig.blDrive());
         Diagnostics.bootDiagnostics(
                 "BR", RobotConfig.brEnc(), RobotConfig.brSteer(), RobotConfig.brDrive());
+
+        m_snapToPid.setTolerance(1);
     }
 
     /** Called periodically to update battery voltage monitoring and logging */
@@ -194,6 +208,25 @@ public class RobotContainer {
                                                         .AUTO_AIM_MAX_ANGULAR_VELOCITY);
                             } else {
                                 rCmd *= speedScale;
+                            }
+                            if (!m_snappingTo) {
+
+                                m_snapToPid.reset();
+                            }
+                            if (m_snappingTo) {
+                                rCmd =
+                                        MathUtil.applyDeadband(
+                                                m_snapToPid.calculate(
+                                                        m_snapTo.getCurrentAngle(),
+                                                        m_snapToSetpoint),
+                                                Constants.SnapToConstants.kSnapToDeadband);
+
+                                System.out.println("current pose : " + m_snapTo.getCurrentAngle());
+
+                                if (m_snapToPid.atSetpoint()) {
+
+                                    m_snappingTo = false;
+                                }
                             }
 
                             return drive.withVelocityX(xCmd)
@@ -317,6 +350,19 @@ public class RobotContainer {
                                 }));
 
         drivetrain.registerTelemetry(logger::telemeterize);
+
+        joystick.b()
+                .onTrue(
+                        Commands.runOnce(
+                                () -> {
+                                    m_snappingTo = true;
+                                    m_snapToSetpoint = 90;
+
+                                    System.out.println("setpoint : " + m_snapToSetpoint);
+                                    System.out.println(m_snappingTo);
+                                    System.out.println(
+                                            "current pose : " + m_snapTo.getCurrentAngle());
+                                }));
 
         // ========== CALIBRATION SEQUENCE ==========
         // Combo: hold X + Y + A + B for 3 seconds
