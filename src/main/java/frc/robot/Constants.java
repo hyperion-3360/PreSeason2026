@@ -192,7 +192,7 @@ public final class Constants {
 
     public static class SnapToConstants {
 
-        public static final double kP = 0.0175;
+        public static final double kP = 0.16;
         public static final double kI = 0.0;
         public static final double kD = 0.0;
 

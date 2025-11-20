@@ -13,17 +13,14 @@ public class SnapTo {
         this.m_drivetrain = driveTrain;
     }
 
-    public double getCurrentAngle() {
+    public Rotation2d getCurrentAngle() {
 
-        var position = new Rotation2d(m_drivetrain.getState().Pose.getRotation().getDegrees());
+        var position =
+                new Rotation2d(
+                        MathUtil.angleModulus(
+                                m_drivetrain.getState().Pose.getRotation().getRadians()));
 
-        return MathUtil.inputModulus(position.getDegrees(), 0, 360);
+        return position;
     }
 
-    public double setWantedAngle(double angle) {
-
-        var setpoint = new Rotation2d(angle).getDegrees();
-
-        return setpoint;
-    }
 }
