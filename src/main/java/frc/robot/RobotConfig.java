@@ -21,10 +21,10 @@ public final class RobotConfig {
     // ---- WCP Swerve X (current robot) ----
     private static final class WCP {
         // IDs from your current TunerConstants.java
-        static final int FL_DRIVE = 7, FL_STEER = 8, FL_ENC = 16;
-        static final int FR_DRIVE = 5, FR_STEER = 6, FR_ENC = 14;
-        static final int BL_DRIVE = 1, BL_STEER = 2, BL_ENC = 13;
-        static final int BR_DRIVE = 3, BR_STEER = 4, BR_ENC = 15;
+        static final int FL_DRIVE = 1, FL_STEER = 2, FL_ENC = 33;
+        static final int FR_DRIVE = 3, FR_STEER = 4, FR_ENC = 32;
+        static final int BL_DRIVE = 7, BL_STEER = 8, BL_ENC = 31;
+        static final int BR_DRIVE = 5, BR_STEER = 6, BR_ENC = 34;
 
         // Inversions as in current project
         static final boolean FL_STEER_INV = true, FL_ENC_INV = false;
