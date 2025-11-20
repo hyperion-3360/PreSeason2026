@@ -7,6 +7,7 @@ import com.ctre.phoenix6.swerve.SwerveRequest;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.RobotBase;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
@@ -35,6 +36,9 @@ public class RobotContainer {
     // Controller - declared early for brownout protection
     private final CommandXboxController joystick =
             new CommandXboxController(Constants.OIConstants.DRIVER_CONTROLLER_PORT);
+
+    private final Joystick atkrightjoystick = new Joystick(1);
+    private final Joystick atkleftjoystick = new Joystick(2);
 
     // Battery brownout protection with haptic feedback
     private final BrownoutProtection brownoutProtection = new BrownoutProtection(joystick);
@@ -141,16 +145,18 @@ public class RobotContainer {
                 drivetrain.applyRequest(
                         () -> {
                             double xRaw =
-                                    -MathUtil.applyDeadband(
-                                            joystick.getLeftY(),
+                                    MathUtil.applyDeadband(
+                                            atkleftjoystick.getX(),
                                             Constants.OIConstants.JOYSTICK_DEADBAND);
+
                             double yRaw =
-                                    -MathUtil.applyDeadband(
-                                            joystick.getLeftX(),
+                                    MathUtil.applyDeadband(
+                                            atkleftjoystick.getY(),
                                             Constants.OIConstants.JOYSTICK_DEADBAND);
+
                             double rRaw =
-                                    -MathUtil.applyDeadband(
-                                            joystick.getRightX(),
+                                    MathUtil.applyDeadband(
+                                            atkleftjoystick.getZ(),
                                             Constants.OIConstants.JOYSTICK_DEADBAND);
 
                             // Apply exponential scaling for finer control at low speeds
