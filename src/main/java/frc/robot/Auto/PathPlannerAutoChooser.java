@@ -1,5 +1,3 @@
 package frc.robot.Auto;
 
-public class PathPlannerAutoChooser {
-    
-}
+public class PathPlannerAutoChooser {}
