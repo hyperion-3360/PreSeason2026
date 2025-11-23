@@ -6,6 +6,7 @@ import com.ctre.phoenix6.swerve.SwerveModule.DriveRequestType;
 import com.ctre.phoenix6.swerve.SwerveRequest;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.controller.PIDController;
+import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.wpilibj.RobotBase;
@@ -16,6 +17,8 @@ import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
+import frc.robot.Auto.PathPlannerPathfinding;
+import frc.robot.Auto.PathPlannerPathfinding.EventMarkerSpecs;
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.commands.AlignToTagCommand;
 import frc.robot.subsystems.swerve.CommandSwerveDrivetrain;
@@ -26,6 +29,7 @@ import frc.robot.subsystems.util.ExponentialScale;
 import frc.robot.subsystems.util.Haptics;
 import frc.robot.subsystems.util.SCurveLimiter;
 import frc.robot.subsystems.vision.VisionSubsystem;
+import java.util.*;
 import org.littletonrobotics.junction.Logger;
 
 public class RobotContainer {
@@ -140,6 +144,7 @@ public class RobotContainer {
     // Subsystems
     public final CommandSwerveDrivetrain drivetrain = TunerConstants.createDrivetrain();
     public final VisionSubsystem vision = new VisionSubsystem(drivetrain);
+    public final PathPlannerPathfinding pathfinding = new PathPlannerPathfinding(drivetrain);
 
     public RobotContainer() {
 
@@ -443,6 +448,17 @@ public class RobotContainer {
                                     System.out.println("[Drifting command] DISABLED");
                                 },
                                 drivetrain));
+
+        double[] test = {0.2,0.4};
+        joystick.y()
+                .onTrue(
+                        pathfinding.followGeneratedPath(
+                                new Pose2d(7, 4, Rotation2d.k180deg),
+                                List.of(
+                                        new EventMarkerSpecs(
+                                                "print something",
+                                                Commands.print("Did a command"),test
+                                                ))));
 
         // ========== AUTO-AIM TOGGLE ==========
         // Hold both triggers (L2 + R2) for 3 seconds to toggle auto-aim mode
