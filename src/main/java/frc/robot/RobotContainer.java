@@ -17,8 +17,8 @@ import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
-import frc.robot.Auto.PathPlannerPathfinding;
-import frc.robot.Auto.PathPlannerPathfinding.EventMarkerSpecs;
+import frc.robot.Auto.pathOnTheFly.EventBuilder.EventMarkerSpecs;
+import frc.robot.Auto.pathOnTheFly.PathCommandManager;
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.commands.AlignToTagCommand;
 import frc.robot.subsystems.swerve.CommandSwerveDrivetrain;
@@ -144,7 +144,7 @@ public class RobotContainer {
     // Subsystems
     public final CommandSwerveDrivetrain drivetrain = TunerConstants.createDrivetrain();
     public final VisionSubsystem vision = new VisionSubsystem(drivetrain);
-    public final PathPlannerPathfinding pathfinding = new PathPlannerPathfinding(drivetrain);
+    public final PathCommandManager pathfinding = new PathCommandManager(drivetrain);
 
     public RobotContainer() {
 
@@ -449,7 +449,7 @@ public class RobotContainer {
                                 },
                                 drivetrain));
 
-        double[] test = {0.2,0.4};
+        double[] test = {0.2, 0.4};
         joystick.y()
                 .onTrue(
                         pathfinding.pathfindToPose(
@@ -457,8 +457,8 @@ public class RobotContainer {
                                 List.of(
                                         new EventMarkerSpecs(
                                                 "print something",
-                                                Commands.print("Did a command"),test
-                                                ))));
+                                                Commands.print("Did a command"),
+                                                test))));
 
         // ========== AUTO-AIM TOGGLE ==========
         // Hold both triggers (L2 + R2) for 3 seconds to toggle auto-aim mode
