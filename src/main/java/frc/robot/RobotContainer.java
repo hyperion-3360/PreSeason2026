@@ -452,7 +452,7 @@ public class RobotContainer {
         double[] test = {0.2,0.4};
         joystick.y()
                 .onTrue(
-                        pathfinding.followGeneratedPath(
+                        pathfinding.pathfindToPose(
                                 new Pose2d(7, 4, Rotation2d.k180deg),
                                 List.of(
                                         new EventMarkerSpecs(

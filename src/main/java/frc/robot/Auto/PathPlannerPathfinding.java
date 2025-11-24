@@ -20,7 +20,6 @@ import com.pathplanner.lib.trajectory.PathPlannerTrajectoryState;
 import com.pathplanner.lib.util.PathPlannerLogging;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj2.command.Command;
@@ -29,15 +28,16 @@ import frc.robot.Constants;
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.swerve.CommandSwerveDrivetrain;
 import java.util.*;
-import java.util.function.Consumer;
 import org.littletonrobotics.junction.Logger;
 
 /** This class is used to generate and manage pathfinding commands */
 public class PathPlannerPathfinding {
     // Making a queue to manage current commands and cancelling them
-    private Queue<Command> pathfindingCommands = new LinkedList<>();
+    private final Queue<Command> pathfindingCommands = new LinkedList<>();
 
+    // Records to simplify data gathering for pathfinding commands
     public record EventMarkerSpecs(String commandName, Command command, double... positions) {}
+    public record PathGenerationSpecs(List<Pose2d> posesToGo, double startVel, double endVel, double startRot, double endRot) {}
 
     private PathPlannerPath createdPath = null;
     private Pose2d pointToGo = Pose2d.kZero;
@@ -45,7 +45,7 @@ public class PathPlannerPathfinding {
     private CommandSwerveDrivetrain drivetrain = null;
 
     // Necessary path variables
-    private PathConstraints constraints =
+    private final PathConstraints constraints =
             PathConstraints.unlimitedConstraints(12.0); // We don't want to limit our speed
     private IdealStartingState startingState;
     private GoalEndState endState;
@@ -72,10 +72,9 @@ public class PathPlannerPathfinding {
 
         Logger.recordOutput("Pathfinding/path created", pathCreated);
         Logger.recordOutput("Pathfinding constraints", constraints);
-    }
 
-    private void logPath(PathPlannerPath createdPath) {
-        PathPlannerLogging.logActivePath(createdPath);
+        if (pathCreated) {
+            PathPlannerLogging.logActivePath(createdPath);
         Logger.recordOutput("Current path start state", createdPath.getIdealStartingState());
         Logger.recordOutput("Current path end state", createdPath.getGoalEndState());
         Logger.recordOutput("Current path waypoint count", createdPath.getWaypoints().size());
@@ -88,6 +87,7 @@ public class PathPlannerPathfinding {
 
         if (createdPath.getEventMarkers().iterator().hasNext()) {
             Logger.recordOutput("Current event", createdPath.getEventMarkers().iterator().next());
+        }
         }
     }
 
@@ -122,7 +122,7 @@ public class PathPlannerPathfinding {
      * @param poseToPathfind The arraylist of pose2d to transform
      * @return A list of bezier curve waypoint
      */
-    private List<Waypoint> transformPoseToWaypoint(ArrayList<Pose2d> poseToPathfind) {
+    private List<Waypoint> transformPoseToWaypoint(List<Pose2d> poseToPathfind) {
         pointToGo = poseToPathfind.get(poseToPathfind.size() - 1);
         return PathPlannerPath.waypointsFromPoses(poseToPathfind);
     }
@@ -149,6 +149,7 @@ public class PathPlannerPathfinding {
             throws Exception {
 
         if (waypointsToPathfind.size() < 2) {
+            pathCreated = false;
             throw new Exception(
                     "not enough waypoints to generate path. A path must contain at least two waypoints.");
         }
@@ -161,9 +162,15 @@ public class PathPlannerPathfinding {
         createdPath =
                 new PathPlannerPath(waypointsToPathfind, constraints, startingState, endState);
 
-        logPath(createdPath);
+        pathCreated = true;
 
         return createdPath;
+    }
+
+    private Command getNextCommand() {
+        if (!pathfindingCommands.isEmpty()) {
+            return pathfindingCommands.poll();
+        } else return Commands.none();
     }
 
     private List<EventMarker> generateEventMarkers(List<EventMarkerSpecs> commandToExecuteOnPath)
@@ -175,14 +182,14 @@ public class PathPlannerPathfinding {
 
             if (specs.positions.length == 0) {
                 throw new IllegalArgumentException(
-                        "Event must specify at least one path position. -1.0 means no zoning,");
+                        "Event must specify at least one path position. -1.0 means no zoning.");
             }
 
             if (specs.positions.length == 1) {
 
                 eventList.add(
                         new EventMarker(specs.commandName, specs.positions[0], specs.command));
-            } else if (specs.positions.length == 1) {
+            } else if (specs.positions.length == 2) {
 
                 eventList.add(
                         new EventMarker(
@@ -191,7 +198,7 @@ public class PathPlannerPathfinding {
                                 specs.positions[1],
                                 specs.command));
             } else {
-                throw new Exception("either more than two position values added per keys or )");
+                throw new Exception("An event can't have more than two positions.");
             }
         }
 
@@ -222,6 +229,7 @@ public class PathPlannerPathfinding {
                             endState,
                             false);
         } catch (Exception e) {
+            pathCreated = false;
             pathfindingCommands.offer(Commands.none());
             return;
         }
@@ -230,8 +238,7 @@ public class PathPlannerPathfinding {
     }
 
     /**
-     * Schedules a pathfinding command and immediatly retrieves the created path then cancels the
-     * scheduled command. This works because of the queue system.
+     * Schedules a pathfinding command and retrieves it's path
      *
      * @param targetPose The pose to pathfind to
      * @return The generated path
@@ -243,6 +250,8 @@ public class PathPlannerPathfinding {
         Pathfinding.ensureInitialized();
 
         createdPath = Pathfinding.getCurrentPath(constraints, endState);
+
+        pathCreated = true;
 
         return createdPath;
     }
@@ -276,19 +285,13 @@ public class PathPlannerPathfinding {
                 },
                 // creates a consumer to set the robot pose
                 // this is not useful in our case since we have cameras
-                new Consumer<Pose2d>() {
-                    @Override
-                    public void accept(Pose2d t) {}
-                },
+               pose -> {},
                 // returns the current robot relative speed
                 () -> {
                     return drivetrain.getState().Speeds;
                 },
                 // applies a drive request based on pathplanner's calculated speed
-                new Consumer<ChassisSpeeds>() {
-
-                    @Override
-                    public void accept(ChassisSpeeds speed) {
+                speed -> {
                         var drive =
                                 new SwerveRequest.FieldCentric()
                                         .withDeadband(
@@ -307,7 +310,6 @@ public class PathPlannerPathfinding {
                                             .withVelocityY(speed.vyMetersPerSecond)
                                             .withRotationalRate(speed.omegaRadiansPerSecond);
                                 });
-                    }
                 },
                 // sets the pid constants pathplanner will use
                 new PPHolonomicDriveController(new PIDConstants(10), new PIDConstants(10)),
@@ -345,44 +347,46 @@ public class PathPlannerPathfinding {
             generatePath(
                     transformPoseToWaypoint(pointsToGeneratePath),
                     startingVelocity,
-                    startingRotationRadiants,
                     endVelocity,
+                    startingRotationRadiants,
                     endRotationRadiants);
         } catch (Exception e) {
             return Commands.none();
         }
         log();
-        if (!pathfindingCommands.isEmpty()) {
-            return pathfindingCommands.poll();
-        } else return Commands.none();
+       return getNextCommand();
     }
 
     /**
      * Follows a generated path depending on the parameters
      *
-     * @param pointsToGeneratePath The poses the robot must go to during the path
-     * @param startingVelocity The start velocity of the path
-     * @param endVelocity The end velocity of the path
-     * @param startingRotationRadiants The start rotation of the path
-     * @param endRotationRadiants The end rotation of the path
+     * @param parameters The following path generation parameters :
+     *  <ul>
+     *   <li>The poses the robot must go to during the path</li>
+     *   <li>The start velocity of the path</li>
+     *   <li>The end velocity of the path </li>
+     *   <li>The start rotation of the path</li>
+     *   <li>The end rotation of the path</li>
+     * </ul>
      * @param commandToExecute The trio of values to generate an event
+     * <ul>
+     *   <li>The name of the command</li>
+     *   <li>The command itself</li>
+     *   <li>The zoning of the command along the path </li>
+     * </ul>
      * @return The queued command
      */
     public Command followGeneratedPath(
-            ArrayList<Pose2d> pointsToGeneratePath,
-            double startingVelocity,
-            double endVelocity,
-            double startingRotationRadiants,
-            double endRotationRadiants,
+            PathGenerationSpecs parameters,
             List<EventMarkerSpecs> commandToExecute) {
 
         try {
             generatePath(
-                    transformPoseToWaypoint(pointsToGeneratePath),
-                    startingVelocity,
-                    startingRotationRadiants,
-                    endVelocity,
-                    endRotationRadiants);
+                    transformPoseToWaypoint(parameters.posesToGo),
+                    parameters.startVel,
+                    parameters.endVel,
+                    parameters.startRot,
+                    parameters.endRot);
         } catch (Exception e) {
             return Commands.none();
         }
@@ -391,9 +395,7 @@ public class PathPlannerPathfinding {
 
         log();
 
-        if (!pathfindingCommands.isEmpty()) {
-            return pathfindingCommands.poll();
-        } else return Commands.none();
+        return getNextCommand();
     }
 
     /**
@@ -403,29 +405,25 @@ public class PathPlannerPathfinding {
      * @param commandToExecute The trio of values to generate an event
      * @return The queued command
      */
-    public Command followGeneratedPath(Pose2d pose, List<EventMarkerSpecs> commandToExecute) {
+    public Command pathfindToPose(Pose2d pose, List<EventMarkerSpecs> commandToExecute) {
         generatePathfindingCommand(generatePathFromPathfinding(pose), commandToExecute);
 
         log();
 
-        if (!pathfindingCommands.isEmpty()) {
-            return pathfindingCommands.poll();
-        } else return Commands.none();
+       return getNextCommand();
     }
 
     /**
      * Follows a generated path depending on the parameters
-     *
+     *`
      * @param pose The pose to pathfind to
      * @return The queued command
      */
-    public Command followGeneratedPath(Pose2d pose) {
+    public Command pathfindToPose(Pose2d pose) {
         generatePathFromPathfinding(pose);
 
         log();
 
-        if (!pathfindingCommands.isEmpty()) {
-            return pathfindingCommands.poll();
-        } else return Commands.none();
+       return getNextCommand();
     }
 }
