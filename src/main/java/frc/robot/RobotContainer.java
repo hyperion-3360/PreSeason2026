@@ -214,20 +214,39 @@ public class RobotContainer {
                                 m_snapToPid.reset();
                             }
                             if (m_snappingTo) {
-                                rCmd =
-                                        MathUtil.applyDeadband(
-                                                m_snapToPid.calculate(
-                                                        m_snapTo.getCurrentAngle().getDegrees(),
-                                                        m_snapToSetpoint),
-                                                Constants.SnapToConstants.kSnapToDeadband);
 
-                                System.out.println(
-                                        "current pose : "
-                                                + m_snapTo.getCurrentAngle().getDegrees());
+                                double currentpose = m_snapTo.getCurrentAngle().getDegrees() + 180;
+                                int inverted = (int) currentpose / 180;
 
-                                if (m_snapToPid.atSetpoint()) {
+                                if (inverted < 0) {
 
-                                    m_snappingTo = false;
+                                    double difference = 360 - currentpose;
+                                    rCmd =
+                                            MathUtil.applyDeadband(
+                                                    m_snapToPid.calculate(
+                                                            difference, m_snapToSetpoint),
+                                                    Constants.SnapToConstants.kSnapToDeadband);
+
+                                } else {
+                                    rCmd =
+                                            MathUtil.applyDeadband(
+                                                    m_snapToPid.calculate(
+                                                            currentpose, m_snapToSetpoint),
+                                                    Constants.SnapToConstants.kSnapToDeadband);
+
+                                    //     rCmd = rCmd * -1;
+                                    // }
+
+                                    System.out.println(
+                                            "current pose : "
+                                                    + m_snapTo.getCurrentAngle().getDegrees());
+
+                                    System.out.println("rCmd value : " + rCmd);
+
+                                    if (m_snapToPid.atSetpoint()) {
+
+                                        m_snappingTo = false;
+                                    }
                                 }
                             }
 
@@ -357,10 +376,8 @@ public class RobotContainer {
                 .onTrue(
                         Commands.runOnce(
                                 () -> {
-                                        
                                     m_snappingTo = true;
                                     m_snapToSetpoint = 90;
-
                                 }));
 
         // ========== CALIBRATION SEQUENCE ==========
