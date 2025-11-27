@@ -73,15 +73,15 @@ public class TunerConstants {
                             new CurrentLimitsConfigs()
                                     // Stator current = actual motor current (protects motor from
                                     // overheating)
-                                    .withStatorCurrentLimit(Amps.of(80)) // Max continuous current
+                                    .withStatorCurrentLimit(Amps.of(RobotConfig.driveStatorLimitAmps()))
                                     .withStatorCurrentLimitEnable(true)
                                     // Supply current = battery current (protects battery from
                                     // brownout)
-                                    .withSupplyCurrentLimit(Amps.of(60)) // Continuous limit
+                                    .withSupplyCurrentLimit(Amps.of(RobotConfig.driveSupplyLimitAmps()))
                                     .withSupplyCurrentLimitEnable(true)
                                     // Supply current lower threshold for burst allowance
-                                    .withSupplyCurrentLowerLimit(Amps.of(80)) // Allow 80A bursts
-                                    .withSupplyCurrentLowerTime(0.5)); // for 0.5 seconds
+                                    .withSupplyCurrentLowerLimit(Amps.of(RobotConfig.driveSupplyBurstAmps()))
+                                    .withSupplyCurrentLowerTime(RobotConfig.driveSupplyBurstTimeSeconds()));
 
     private static final TalonFXConfiguration steerInitialConfigs =
             new TalonFXConfiguration()
@@ -91,7 +91,7 @@ public class TunerConstants {
                                     // set a relatively low
                                     // stator current limit to help avoid brownouts without
                                     // impacting performance.
-                                    .withStatorCurrentLimit(Amps.of(60))
+                                    .withStatorCurrentLimit(Amps.of(RobotConfig.steerStatorLimitAmps()))
                                     .withStatorCurrentLimitEnable(true));
     private static final CANcoderConfiguration encoderInitialConfigs = new CANcoderConfiguration();
     // Configs for the Pigeon 2; leave this null to skip applying Pigeon 2 configs

@@ -15,8 +15,17 @@ public final class RobotConfig {
         SDS_MK4I_L2
     }
 
+    public enum MotorType {
+        KRAKEN_X60,  // More powerful, better cooling
+        FALCON_500   // Standard TalonFX
+    }
+
     /** Change this single line to switch robot hardware profile. */
     public static final SwerveProfile ACTIVE_SWERVE = SwerveProfile.SDS_MK4I_L2;
+
+    /** Change these to mix and match motor types for drive and steer. */
+    public static final MotorType DRIVE_MOTOR = MotorType.FALCON_500;
+    public static final MotorType STEER_MOTOR = MotorType.FALCON_500;
 
     // ---- WCP Swerve X (current robot) ----
     private static final class WCP {
@@ -60,6 +69,26 @@ public final class RobotConfig {
         static final double COUPLE_RATIO = WCP.COUPLE_RATIO; // placeholder
         static final double WHEEL_RADIUS_IN = 2.0; // 4" wheel -> 2.0" radius
         static final double SPEED_12V_MPS = WCP.SPEED_12V_MPS; // placeholder until SysId
+
+    }
+
+    // ---- Motor-Specific Current Limits ----
+    private static final class KrakenLimits {
+        // Kraken X60 can handle more current and has better thermal management
+        static final double DRIVE_STATOR_LIMIT_A = 80.0;
+        static final double DRIVE_SUPPLY_LIMIT_A = 60.0;
+        static final double DRIVE_SUPPLY_BURST_A = 80.0;
+        static final double DRIVE_SUPPLY_BURST_TIME_S = 0.5;
+        static final double STEER_STATOR_LIMIT_A = 60.0;
+    }
+
+    private static final class FalconLimits {
+        // Falcon 500 thermal limits - more conservative than Kraken
+        static final double DRIVE_STATOR_LIMIT_A = 60.0;
+        static final double DRIVE_SUPPLY_LIMIT_A = 50.0;
+        static final double DRIVE_SUPPLY_BURST_A = 65.0;
+        static final double DRIVE_SUPPLY_BURST_TIME_S = 0.5;
+        static final double STEER_STATOR_LIMIT_A = 40.0;
     }
 
     // ---- Public helpers used by TunerConstants ----
@@ -165,5 +194,44 @@ public final class RobotConfig {
 
     public static double speedAt12V() {
         return isMk4i() ? MK4I.SPEED_12V_MPS : WCP.SPEED_12V_MPS;
+    }
+
+    // ---- Current Limit Getters (based on motor type) ----
+    private static boolean isDriveKraken() {
+        return DRIVE_MOTOR == MotorType.KRAKEN_X60;
+    }
+
+    private static boolean isSteerKraken() {
+        return STEER_MOTOR == MotorType.KRAKEN_X60;
+    }
+
+    public static double driveStatorLimitAmps() {
+        return isDriveKraken()
+                ? KrakenLimits.DRIVE_STATOR_LIMIT_A
+                : FalconLimits.DRIVE_STATOR_LIMIT_A;
+    }
+
+    public static double driveSupplyLimitAmps() {
+        return isDriveKraken()
+                ? KrakenLimits.DRIVE_SUPPLY_LIMIT_A
+                : FalconLimits.DRIVE_SUPPLY_LIMIT_A;
+    }
+
+    public static double driveSupplyBurstAmps() {
+        return isDriveKraken()
+                ? KrakenLimits.DRIVE_SUPPLY_BURST_A
+                : FalconLimits.DRIVE_SUPPLY_BURST_A;
+    }
+
+    public static double driveSupplyBurstTimeSeconds() {
+        return isDriveKraken()
+                ? KrakenLimits.DRIVE_SUPPLY_BURST_TIME_S
+                : FalconLimits.DRIVE_SUPPLY_BURST_TIME_S;
+    }
+
+    public static double steerStatorLimitAmps() {
+        return isSteerKraken()
+                ? KrakenLimits.STEER_STATOR_LIMIT_A
+                : FalconLimits.STEER_STATOR_LIMIT_A;
     }
 }

@@ -26,10 +26,13 @@ public class BrownoutProtection {
     private final CommandXboxController m_controller;
 
     // Spike filtering: ignore transient voltage drops during acceleration/deceleration
-    // Voltage drops during hard accel are normal and temporary - we only care about sustained low voltage
+    // Voltage drops during hard accel are normal and temporary - we only care about sustained low
+    // voltage
     private double m_lowVoltageStartTime = -1.0; // When voltage first dropped below threshold
-    private static final double VOLTAGE_DEBOUNCE_TIME = 0.5; // Must be low for 500ms to trigger (tune if needed)
-    private BatteryStatus m_pendingStatus = BatteryStatus.GOOD; // Status waiting to be confirmed by debounce
+    private static final double VOLTAGE_DEBOUNCE_TIME =
+            0.5; // Must be low for 500ms to trigger (tune if needed)
+    private BatteryStatus m_pendingStatus =
+            BatteryStatus.GOOD; // Status waiting to be confirmed by debounce
 
     // ANSI color codes for console output
     private static final String ANSI_RESET = "\u001B[0m";
@@ -51,8 +54,8 @@ public class BrownoutProtection {
      * Updates the battery status based on current voltage. Should be called periodically (every
      * robot loop).
      *
-     * Uses debouncing to filter transient voltage drops during acceleration/deceleration.
-     * The battery must stay below a threshold for VOLTAGE_DEBOUNCE_TIME before triggering.
+     * <p>Uses debouncing to filter transient voltage drops during acceleration/deceleration. The
+     * battery must stay below a threshold for VOLTAGE_DEBOUNCE_TIME before triggering.
      */
     public void update() {
         double voltage = RobotController.getBatteryVoltage();
