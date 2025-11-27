@@ -4,6 +4,7 @@ import static edu.wpi.first.units.Units.*;
 
 import com.ctre.phoenix6.swerve.SwerveModule.DriveRequestType;
 import com.ctre.phoenix6.swerve.SwerveRequest;
+import com.pathplanner.lib.commands.PathPlannerAuto;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.geometry.Rotation2d;
@@ -106,6 +107,11 @@ public class RobotContainer {
                 "BL", RobotConfig.blEnc(), RobotConfig.blSteer(), RobotConfig.blDrive());
         Diagnostics.bootDiagnostics(
                 "BR", RobotConfig.brEnc(), RobotConfig.brSteer(), RobotConfig.brDrive());
+
+        drivetrain.initPathPlanning();
+
+        
+
     }
 
     /** Called periodically to update battery voltage monitoring and logging */
@@ -342,6 +348,6 @@ public class RobotContainer {
     }
 
     public Command getAutonomousCommand() {
-        return Commands.print("No autonomous command configured");
+        return new PathPlannerAuto("Path");
     }
 }
