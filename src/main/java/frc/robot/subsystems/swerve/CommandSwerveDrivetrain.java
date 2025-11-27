@@ -311,17 +311,8 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
         this.setControl(m_robotSpeedsRequest.withSpeeds(newSpeeds));
     }
 
-    public void pathplanning() {
-        // https://api.ctr-electronics.com/phoenix6/latest/cpp/classctre_1_1phoenix6_1_1swerve_1_1_swerve_drivetrain.html
-        // search and do methods to make AutoBuilder work
-
-        // public DriveSubsystem() {
-
-        // All other subsystem initialization
-        // ...
-
-        // Load the RobotConfig from the GUI settings. You should probably
-        // store this in your Constants file
+    public void initPathPlanning() {
+        //configurer dans pathplanner
         RobotConfig config;
         try {
             config = RobotConfig.fromGUISettings();
@@ -366,9 +357,6 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
                     return false;
                 },
                 this // Reference to this subsystem to set requirements
-                );
-
-        // }
-
+        );
     }
 }

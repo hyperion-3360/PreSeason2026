@@ -108,7 +108,10 @@ public class RobotContainer {
         Diagnostics.bootDiagnostics(
                 "BR", RobotConfig.brEnc(), RobotConfig.brSteer(), RobotConfig.brDrive());
 
-        drivetrain.pathplanning();
+        drivetrain.initPathPlanning();
+
+        
+
     }
 
     /** Called periodically to update battery voltage monitoring and logging */
@@ -345,8 +348,6 @@ public class RobotContainer {
     }
 
     public Command getAutonomousCommand() {
-        // return Commands.print("No autonomous command configured");
-
         return new PathPlannerAuto("Path");
     }
 }
