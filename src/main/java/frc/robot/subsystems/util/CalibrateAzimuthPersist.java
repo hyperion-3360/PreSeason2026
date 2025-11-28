@@ -8,7 +8,6 @@ import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.wpilibj.RobotBase;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
-import frc.robot.RobotConfig;
 
 /**
  * Persists CANcoder MagnetOffset to device FLASH so that the current absolute angle becomes zero.
@@ -22,10 +21,10 @@ public class CalibrateAzimuthPersist extends Command {
 
     // CANcoder IDs from RobotConfig - automatically switches with ACTIVE_SWERVE profile
     // If you're on a Canivore, change to: new CANcoder(id, "canivore")
-    private final CANcoder frontLeft = new CANcoder(RobotConfig.flEnc()); // Front Left
-    private final CANcoder frontRight = new CANcoder(RobotConfig.frEnc()); // Front Right
-    private final CANcoder backLeft = new CANcoder(RobotConfig.blEnc()); // Back Left
-    private final CANcoder backRight = new CANcoder(RobotConfig.brEnc()); // Back Right
+    private final CANcoder frontLeft = new CANcoder(33, "CANivore_3360"); // Front Left
+    private final CANcoder frontRight = new CANcoder(32, "CANivore_3360"); // Front Right
+    private final CANcoder backLeft = new CANcoder(34, "CANivore_3360"); // Back Left
+    private final CANcoder backRight = new CANcoder(31, "CANivore_3360"); // Back Right
 
     private boolean done = false;
 

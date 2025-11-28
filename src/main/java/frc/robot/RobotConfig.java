@@ -16,8 +16,8 @@ public final class RobotConfig {
     }
 
     public enum MotorType {
-        KRAKEN_X60,  // More powerful, better cooling
-        FALCON_500   // Standard TalonFX
+        KRAKEN_X60, // More powerful, better cooling
+        FALCON_500 // Standard TalonFX
     }
 
     /** Change this single line to switch robot hardware profile. */
@@ -25,6 +25,7 @@ public final class RobotConfig {
 
     /** Change these to mix and match motor types for drive and steer. */
     public static final MotorType DRIVE_MOTOR = MotorType.FALCON_500;
+
     public static final MotorType STEER_MOTOR = MotorType.FALCON_500;
 
     // ---- WCP Swerve X (current robot) ----
@@ -52,10 +53,10 @@ public final class RobotConfig {
     // ---- SDS MK4i L2 (new kit) ----
     private static final class MK4I {
         // TODO: Replace placeholders with real IDs when wired
-        static final int FL_DRIVE = 1, FL_STEER = 2, FL_ENC = WCP.FL_ENC;
-        static final int FR_DRIVE = 3, FR_STEER = 4, FR_ENC = WCP.FR_ENC;
-        static final int BL_DRIVE = 7, BL_STEER = 8, BL_ENC = WCP.BL_ENC;
-        static final int BR_DRIVE = 5, BR_STEER = 6, BR_ENC = WCP.BR_ENC;
+        static final int FL_DRIVE = 1, FL_STEER = 2, FL_ENC = 33;
+        static final int FR_DRIVE = 3, FR_STEER = 4, FR_ENC = 32;
+        static final int BL_DRIVE = 7, BL_STEER = 8, BL_ENC = 34;
+        static final int BR_DRIVE = 5, BR_STEER = 6, BR_ENC = 31;
 
         // TODO: Confirm/adjust inversions for MK4i once installed
         static final boolean FL_STEER_INV = WCP.FL_STEER_INV, FL_ENC_INV = WCP.FL_ENC_INV;
@@ -64,12 +65,11 @@ public final class RobotConfig {
         static final boolean BR_STEER_INV = WCP.BR_STEER_INV, BR_ENC_INV = WCP.BR_ENC_INV;
 
         // TODO: Set official MK4i L2 ratios and wheel radius (inches) once confirmed
-        static final double DRIVE_GEAR_RATIO = WCP.DRIVE_GEAR_RATIO; // placeholder
-        static final double STEER_GEAR_RATIO = WCP.STEER_GEAR_RATIO; // placeholder
-        static final double COUPLE_RATIO = WCP.COUPLE_RATIO; // placeholder
+        static final double DRIVE_GEAR_RATIO = 5.902777777777778; // placeholder
+        static final double STEER_GEAR_RATIO = 18.75; // placeholder
+        static final double COUPLE_RATIO = 3.125; // placeholder
         static final double WHEEL_RADIUS_IN = 2.0; // 4" wheel -> 2.0" radius
         static final double SPEED_12V_MPS = WCP.SPEED_12V_MPS; // placeholder until SysId
-
     }
 
     // ---- Motor-Specific Current Limits ----

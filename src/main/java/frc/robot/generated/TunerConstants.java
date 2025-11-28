@@ -24,14 +24,7 @@ public class TunerConstants {
     // The steer motor uses any SwerveModule.SteerRequestType control request with the
     // output type specified by SwerveModuleConstants.SteerMotorClosedLoopOutput
     private static final Slot0Configs steerGains =
-            new Slot0Configs()
-                    .withKP(100)
-                    .withKI(0)
-                    .withKD(0.5)
-                    .withKS(0.1) // Static friction compensation
-                    .withKV(1.66) // Velocity feedforward
-                    .withKA(0.015) // Acceleration feedforward (faster steering response)
-                    .withStaticFeedforwardSign(StaticFeedforwardSignValue.UseClosedLoopSign);
+            new Slot0Configs().withKP(100).withKI(0).withKD(0.5);
     // When using closed-loop control, the drive motor uses the control
     // output type specified by SwerveModuleConstants.DriveMotorClosedLoopOutput
     private static final Slot0Configs driveGains =
@@ -73,15 +66,19 @@ public class TunerConstants {
                             new CurrentLimitsConfigs()
                                     // Stator current = actual motor current (protects motor from
                                     // overheating)
-                                    .withStatorCurrentLimit(Amps.of(RobotConfig.driveStatorLimitAmps()))
+                                    .withStatorCurrentLimit(
+                                            Amps.of(RobotConfig.driveStatorLimitAmps()))
                                     .withStatorCurrentLimitEnable(true)
                                     // Supply current = battery current (protects battery from
                                     // brownout)
-                                    .withSupplyCurrentLimit(Amps.of(RobotConfig.driveSupplyLimitAmps()))
+                                    .withSupplyCurrentLimit(
+                                            Amps.of(RobotConfig.driveSupplyLimitAmps()))
                                     .withSupplyCurrentLimitEnable(true)
                                     // Supply current lower threshold for burst allowance
-                                    .withSupplyCurrentLowerLimit(Amps.of(RobotConfig.driveSupplyBurstAmps()))
-                                    .withSupplyCurrentLowerTime(RobotConfig.driveSupplyBurstTimeSeconds()));
+                                    .withSupplyCurrentLowerLimit(
+                                            Amps.of(RobotConfig.driveSupplyBurstAmps()))
+                                    .withSupplyCurrentLowerTime(
+                                            RobotConfig.driveSupplyBurstTimeSeconds()));
 
     private static final TalonFXConfiguration steerInitialConfigs =
             new TalonFXConfiguration()
@@ -91,7 +88,8 @@ public class TunerConstants {
                                     // set a relatively low
                                     // stator current limit to help avoid brownouts without
                                     // impacting performance.
-                                    .withStatorCurrentLimit(Amps.of(RobotConfig.steerStatorLimitAmps()))
+                                    .withStatorCurrentLimit(
+                                            Amps.of(RobotConfig.steerStatorLimitAmps()))
                                     .withStatorCurrentLimitEnable(true));
     private static final CANcoderConfiguration encoderInitialConfigs = new CANcoderConfiguration();
     // Configs for the Pigeon 2; leave this null to skip applying Pigeon 2 configs
@@ -101,7 +99,7 @@ public class TunerConstants {
     // All swerve devices must share the same CAN bus
     // Using CANivore for CANFD support with new swerve hardware
     // IMPORTANT: Verify CANivore name in Phoenix Tuner X (default is "canivore")
-    public static final CANBus kCANBus = new CANBus("canivore");
+    public static final CANBus kCANBus = new CANBus("CANivore_3360");
 
     // Theoretical free speed (m/s) at 12 V applied output;
     // This needs to be tuned to your individual robot
