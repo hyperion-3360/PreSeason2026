@@ -312,7 +312,7 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
     }
 
     public void initPathPlanning() {
-        //configurer dans pathplanner
+        // configurer dans pathplanner
         RobotConfig config;
         try {
             config = RobotConfig.fromGUISettings();
@@ -357,6 +357,6 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
                     return false;
                 },
                 this // Reference to this subsystem to set requirements
-        );
+                );
     }
 }
