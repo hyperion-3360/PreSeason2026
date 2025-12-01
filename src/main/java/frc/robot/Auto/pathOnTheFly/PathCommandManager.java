@@ -9,9 +9,9 @@ import edu.wpi.first.wpilibj2.command.Commands;
 import frc.robot.Auto.pathOnTheFly.EventBuilder.EventMarkerSpecs;
 import frc.robot.subsystems.swerve.CommandSwerveDrivetrain;
 import java.util.List;
+import java.util.Set;
 
 public class PathCommandManager {
-    private PathPlannerPath createdPath = null;
 
     private final EventBuilder m_eventBuilder;
     private final PathGenerator m_pathGenerator;
@@ -19,6 +19,7 @@ public class PathCommandManager {
     private final PPLPathfindingWrapper m_pathfindingWrapper;
 
     public record PathGenerationSpecs(
+            Pose2d robotPose,
             List<Pose2d> posesToGo,
             double startVel,
             double endVel,
@@ -29,7 +30,10 @@ public class PathCommandManager {
     private final PathConstraints constraints =
             PathConstraints.unlimitedConstraints(12.0); // We don't want to limit our speed
 
+    private final CommandSwerveDrivetrain drivetrain;
+
     public PathCommandManager(CommandSwerveDrivetrain drivetrain) {
+        this.drivetrain = drivetrain;
         m_eventBuilder = new EventBuilder();
         m_pathGenerator = new PathGenerator(constraints);
         m_pathfindingWrapper = new PPLPathfindingWrapper(constraints, drivetrain);
@@ -41,6 +45,7 @@ public class PathCommandManager {
      *
      * @param parameters The following path generation parameters :
      *     <ul>
+     *       <li>The current robot pose
      *       <li>The poses the robot must go to during the path
      *       <li>The start velocity of the path
      *       <li>The end velocity of the path
@@ -51,20 +56,24 @@ public class PathCommandManager {
      * @return The Autobuilder path-following or nothing if path creation failed
      */
     public Command followGeneratedPath(PathGenerationSpecs parameters) {
-        try {
-            createdPath =
-                    m_pathGenerator.generatePath(
-                            parameters.posesToGo,
-                            parameters.startVel,
-                            parameters.endVel,
-                            parameters.startRot,
-                            parameters.endRot);
-        } catch (Exception e) {
-            return Commands.none();
-        }
-        m_pathLogger.feedNewPathToLogger(createdPath);
-
-        return AutoBuilder.followPath(createdPath);
+        return Commands.defer(
+                () -> {
+                    try {
+                        return AutoBuilder.followPath(
+                                m_pathGenerator.generatePath(
+                                        parameters.robotPose,
+                                        parameters.posesToGo,
+                                        parameters.startVel,
+                                        parameters.endVel,
+                                        parameters.startRot,
+                                        parameters.endRot));
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        System.out.println("PATHFIND_TO_POSE METHOD RETURNED NO PATH!");
+                        return Commands.none();
+                    }
+                },
+                Set.of(drivetrain));
     }
 
     /**
@@ -90,25 +99,26 @@ public class PathCommandManager {
      */
     public Command followGeneratedPath(
             PathGenerationSpecs parameters, List<EventMarkerSpecs> commandToExecute) {
-
-        try {
-            createdPath =
-                    m_pathGenerator.eventAdder(
-                            m_pathGenerator.generatePath(
-                                    parameters.posesToGo,
-                                    parameters.startVel,
-                                    parameters.endVel,
-                                    parameters.startRot,
-                                    parameters.endRot),
-                            m_eventBuilder.generateEventMarkers(commandToExecute));
-        } catch (Exception e) {
-            return Commands.none();
-        }
-
-        m_pathLogger.feedNewPathToLogger(createdPath);
-        m_pathLogger.log();
-
-        return AutoBuilder.followPath(createdPath);
+        return Commands.defer(
+                () -> {
+                    try {
+                        return AutoBuilder.followPath(
+                                m_pathGenerator.eventAdder(
+                                        m_pathGenerator.generatePath(
+                                                parameters.robotPose,
+                                                parameters.posesToGo,
+                                                parameters.startVel,
+                                                parameters.endVel,
+                                                parameters.startRot,
+                                                parameters.endRot),
+                                        m_eventBuilder.generateEventMarkers(commandToExecute)));
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        System.out.println("PATHFIND_TO_POSE METHOD RETURNED NO PATH!");
+                        return Commands.none();
+                    }
+                },
+                Set.of(drivetrain));
     }
 
     /**
@@ -119,19 +129,23 @@ public class PathCommandManager {
      * @return The queued command
      */
     public Command pathfindToPose(Pose2d pose, List<EventMarkerSpecs> commandsToExecute) {
-        try {
-            createdPath =
-                    m_pathGenerator.eventAdder(
-                            m_pathfindingWrapper.generatePathFromPathfinding(pose),
-                            m_eventBuilder.generateEventMarkers(commandsToExecute));
-        } catch (Exception e) {
-            return Commands.none();
-        }
+        return Commands.defer(
+                () -> {
+                    try {
+                        var path =
+                                m_pathGenerator.eventAdder(
+                                        m_pathfindingWrapper.generatePathFromPathfinding(pose),
+                                        m_eventBuilder.generateEventMarkers(commandsToExecute));
 
-        m_pathLogger.feedNewPathToLogger(createdPath);
-        m_pathLogger.log();
-
-        return AutoBuilder.followPath(createdPath);
+                        path.preventFlipping = true;
+                        return AutoBuilder.followPath(path);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        System.out.println("PATHFIND_TO_POSE METHOD RETURNED NO PATH!");
+                        return Commands.none();
+                    }
+                },
+                Set.of(drivetrain));
     }
 
     /**
@@ -141,11 +155,13 @@ public class PathCommandManager {
      * @return The queued command
      */
     public Command pathfindToPose(Pose2d pose) {
+        return Commands.defer(
+                () -> {
+                    PathPlannerPath path = m_pathfindingWrapper.generatePathFromPathfinding(pose);
 
-        createdPath = m_pathfindingWrapper.generatePathFromPathfinding(pose);
-        m_pathLogger.feedNewPathToLogger(createdPath);
-        m_pathLogger.log();
-
-        return AutoBuilder.followPath(createdPath);
+                    path.preventFlipping = true;
+                    return AutoBuilder.followPath(path);
+                },
+                Set.of(drivetrain));
     }
 }

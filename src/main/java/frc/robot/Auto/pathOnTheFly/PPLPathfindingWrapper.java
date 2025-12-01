@@ -8,24 +8,26 @@ import com.pathplanner.lib.auto.AutoBuilder;
 import com.pathplanner.lib.config.PIDConstants;
 import com.pathplanner.lib.config.RobotConfig;
 import com.pathplanner.lib.controllers.PPHolonomicDriveController;
+import com.pathplanner.lib.path.GoalEndState;
+import com.pathplanner.lib.path.IdealStartingState;
 import com.pathplanner.lib.path.PathConstraints;
 import com.pathplanner.lib.path.PathPlannerPath;
 import com.pathplanner.lib.pathfinding.Pathfinding;
 import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
-import frc.robot.Constants;
-import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.swerve.CommandSwerveDrivetrain;
 
 public class PPLPathfindingWrapper {
     private RobotConfig config = null;
-    private PathPlannerPath createdPath = null;
     private final PathConstraints constraints;
+    private final CommandSwerveDrivetrain drivetrain;
 
     public PPLPathfindingWrapper(PathConstraints constraints, CommandSwerveDrivetrain drivetrain) {
         this.config = getRobotConfig();
         this.constraints = constraints;
+        this.drivetrain = drivetrain;
 
         configureAuto(drivetrain);
     }
@@ -52,41 +54,39 @@ public class PPLPathfindingWrapper {
      * @param drivetrain The currently used drivetrain
      */
     private void configureAuto(CommandSwerveDrivetrain drivetrain) {
+        var drive =
+                // PPHolonomic gives robot centered velocities
+                new SwerveRequest.RobotCentric()
+                        // removed deadbands to prevent clipping small pid speeds and stun-locking
+                        // the robot
+                        .withDriveRequestType(
+                                DriveRequestType.Velocity); // Since pp sends vels not vol
+
         AutoBuilder.configure(
                 // returns the current robot pose
                 () -> {
                     return drivetrain.getState().Pose;
                 },
                 // creates a consumer to set the robot pose
-                // this is not useful in our case since we have cameras
-                pose -> {},
+                pose -> {
+                    drivetrain.resetPose(pose);
+                },
                 // returns the current robot relative speed
                 () -> {
                     return drivetrain.getState().Speeds;
                 },
                 // applies a drive request based on pathplanner's calculated speed
                 speed -> {
-                    var drive =
-                            new SwerveRequest.FieldCentric()
-                                    .withDeadband(
-                                            TunerConstants.kSpeedAt12Volts.in(MetersPerSecond)
-                                                    * 0.1)
-                                    .withRotationalDeadband(
-                                            RotationsPerSecond.of(
-                                                                    Constants.DriveConstants
-                                                                            .MAX_ANGULAR_RATE_TELEOP)
-                                                            .in(RadiansPerSecond)
-                                                    * 0.1) // Add a 10% deadband
-                                    .withDriveRequestType(DriveRequestType.OpenLoopVoltage);
-                    drivetrain.applyRequest(
-                            () -> {
-                                return drive.withVelocityX(speed.vxMetersPerSecond)
-                                        .withVelocityY(speed.vyMetersPerSecond)
-                                        .withRotationalRate(speed.omegaRadiansPerSecond);
-                            });
+                    // updates control request with calculated speeds
+                    drive.withVelocityX(speed.vxMetersPerSecond)
+                            .withVelocityY(speed.vyMetersPerSecond)
+                            .withRotationalRate(speed.omegaRadiansPerSecond);
+
+                    // gives the control request to the controllers
+                    drivetrain.setControl(drive);
                 },
                 // sets the pid constants pathplanner will use
-                new PPHolonomicDriveController(new PIDConstants(10), new PIDConstants(10)),
+                new PPHolonomicDriveController(new PIDConstants(5), new PIDConstants(5)),
                 // gets the configs from the pathplanner GUI
                 config,
                 // tells autobuilder to flip the path if the alliance is red
@@ -107,15 +107,36 @@ public class PPLPathfindingWrapper {
      * @return The generated path
      */
     public PathPlannerPath generatePathFromPathfinding(Pose2d targetPose) {
+        initializePathfinding(targetPose);
+        // prevents returning the path before a new one is made
+        while (!Pathfinding.isNewPathAvailable()) {
+            try {
+                Thread.sleep(5);
+            } catch (InterruptedException e) {
+            }
+        }
+        return new PathPlannerPath(
+                PathPlannerPath.waypointsFromPoses(
+                        Pathfinding.getCurrentPath(
+                                        constraints, new GoalEndState(0, targetPose.getRotation()))
+                                .getPathPoses()),
+                constraints,
+                new IdealStartingState(0, drivetrain.getState().Pose.getRotation()),
+                new GoalEndState(0, targetPose.getRotation()));
+    }
 
-        AutoBuilder.pathfindToPose(targetPose, constraints);
-
+    private void initializePathfinding(Pose2d targetPose) {
+        resetPathfinding();
+        Pathfinding.setStartPosition(drivetrain.getState().Pose.getTranslation());
         Pathfinding.setGoalPosition(targetPose.getTranslation());
-        Pathfinding.ensureInitialized();
+    }
 
-        createdPath = Pathfinding.getCurrentPath(constraints, null);
-
-        return createdPath;
+    private void resetPathfinding() {
+        // removes any cached paths to prevent reusing the same path twice
+        PathPlannerPath.clearCache();
+        // creates an impossible path to clear the pathfinding state
+        Pathfinding.setStartPosition(Translation2d.kZero);
+        Pathfinding.setGoalPosition(new Translation2d(100, 100));
     }
 
     public RobotConfig getConfig() {

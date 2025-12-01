@@ -8,14 +8,12 @@ import com.pathplanner.lib.path.PathPlannerPath;
 import com.pathplanner.lib.path.Waypoint;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
+import java.util.ArrayList;
 import java.util.List;
 
 public class PathGenerator {
 
-    private PathPlannerPath createdPath = null;
     private final PathConstraints constraints;
-    private IdealStartingState startingState;
-    private GoalEndState endState;
 
     public PathGenerator(PathConstraints constraints) {
         this.constraints = constraints;
@@ -45,28 +43,27 @@ public class PathGenerator {
      * @throws Exception If there are not enough waypoints to generate a path
      */
     public PathPlannerPath generatePath(
+            Pose2d robotPose,
             List<Pose2d> poses,
             double startingVelocity,
             double endVelocity,
             double startingRotationRadiants,
             double endRotationRadians)
             throws Exception {
-
-        if (poses.size() < 2) {
+        List<Pose2d> tempPosList = new ArrayList<>();
+        if (poses.size() < 1) {
             throw new Exception(
-                    "not enough waypoints to generate path. A path must contain at least two waypoints.");
+                    "not enough waypoints to generate path. A path must contain at least one waypoints.");
         }
-
-        startingState =
+        // prevents path failure because robot isn't at the beginning of the path
+        tempPosList.add(robotPose);
+        tempPosList.addAll(poses);
+        return new PathPlannerPath(
+                transformPoseToWaypoint(tempPosList),
+                constraints,
                 new IdealStartingState(
-                        startingVelocity, Rotation2d.fromRadians(startingRotationRadiants));
-        endState = new GoalEndState(endVelocity, Rotation2d.fromRadians(endRotationRadians));
-
-        createdPath =
-                new PathPlannerPath(
-                        transformPoseToWaypoint(poses), constraints, startingState, endState);
-
-        return createdPath;
+                        startingVelocity, Rotation2d.fromRadians(startingRotationRadiants)),
+                new GoalEndState(endVelocity, Rotation2d.fromRadians(endRotationRadians)));
     }
 
     /**
@@ -82,14 +79,18 @@ public class PathGenerator {
         PathPlannerPath pathWithEvents = null;
         pathWithEvents =
                 new PathPlannerPath(
-                        path.getWaypoints(),
+                        PathPlannerPath.waypointsFromPoses(path.getPathPoses()),
                         path.getRotationTargets(),
                         path.getPointTowardsZones(),
                         path.getConstraintZones(),
                         commandToExecuteOnPath,
                         constraints,
-                        startingState,
-                        endState,
+                        new IdealStartingState(0, path.getInitialHeading()),
+                        new GoalEndState(
+                                0,
+                                path.getPathPoses()
+                                        .get(path.getPathPoses().size() - 1)
+                                        .getRotation()),
                         false);
         return pathWithEvents;
     }
