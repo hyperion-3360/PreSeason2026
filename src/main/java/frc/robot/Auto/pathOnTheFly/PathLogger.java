@@ -17,7 +17,7 @@ public class PathLogger {
     private PathPlannerPath createdPath = null;
     private Pose2d pointToGo = Pose2d.kZero;
     private boolean pathCreated = false;
-    private final PathConstraints constraints; // We don't want to limit our speed
+    private final PathConstraints constraints;
     private RobotConfig config = null;
     private final CommandSwerveDrivetrain drivetrain;
 
@@ -70,6 +70,7 @@ public class PathLogger {
 
             pointToGo = path.getPathPoses().get(path.getPathPoses().size() - 1);
         }
+        log();
     }
 
     private double getPathLength() {

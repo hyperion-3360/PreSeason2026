@@ -19,6 +19,7 @@ import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
 import frc.robot.Auto.pathOnTheFly.EventBuilder.EventMarkerSpecs;
 import frc.robot.Auto.pathOnTheFly.PathCommandManager;
+import frc.robot.Auto.pathOnTheFly.PathCommandManager.PathGenerationSpecs;
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.commands.AlignToTagCommand;
 import frc.robot.subsystems.swerve.CommandSwerveDrivetrain;
@@ -449,16 +450,17 @@ public class RobotContainer {
                                 },
                                 drivetrain));
 
-        double[] test = {0.2, 0.4};
-        joystick.y()
-                .onTrue(
-                        pathfinding.pathfindToPose(
-                                new Pose2d(7, 4, Rotation2d.k180deg),
-                                List.of(
-                                        new EventMarkerSpecs(
-                                                "print something",
-                                                Commands.print("Did a command"),
-                                                test))));
+        PathGenerationSpecs test =
+                new PathGenerationSpecs(
+                        drivetrain.getState().Pose,
+                        List.of(
+                                new Pose2d(3, 4, Rotation2d.k180deg),
+                                new Pose2d(4, 4, Rotation2d.k180deg)),
+                        0.0,
+                        0.0,
+                        drivetrain.getState().Pose.getRotation().getDegrees(),
+                        180.0);
+        joystick.y().onTrue(pathfinding.followGeneratedPath(test));
 
         // ========== AUTO-AIM TOGGLE ==========
         // Hold both triggers (L2 + R2) for 3 seconds to toggle auto-aim mode
@@ -695,6 +697,11 @@ public class RobotContainer {
     }
 
     public Command getAutonomousCommand() {
-        return Commands.print("No autonomous command configured");
+        double[] test = {0.2};
+        return pathfinding.pathfindToPose(
+                new Pose2d(7, 4, Rotation2d.k180deg),
+                List.of(
+                        new EventMarkerSpecs(
+                                "print something", Commands.print("Did a command"), test)));
     }
 }
