@@ -40,7 +40,6 @@ public final class Constants {
         public static final double JOYSTICK_EXPONENTIAL_FACTOR = 0.4;
 
         // Battery voltage thresholds for brownout protection
-        // NOTE: These are tuned for competition - battery will drop during match!
         // Typical voltages: Start=12.5V, Mid-match=11.5V, End=10.5-11.5V
         public static final double BATTERY_NOMINAL_VOLTAGE = 12.0; // Fully charged battery voltage
         public static final double BATTERY_WARNING_VOLTAGE =
@@ -71,6 +70,11 @@ public final class Constants {
         public static final double SCURVE_OMEGA_MAX_JERK = 200.0; // joystick units/s³
 
         public static final boolean SCURVE_ENABLED_DEFAULT = true;
+
+        // Universal speed limiter (0-100% of max speed)
+        // Applies to ALL drive modes: teleop with S-Curve, auto-align, auto-aim, etc.
+        // 100 = full speed, 50 = half speed, 0 = no movement
+        public static final double SPEED_LIMITER_PERCENT = 100.0; // Percentage of max speed (0-100)
     }
 
     /** Vision Subsystem Constants */
@@ -78,8 +82,7 @@ public final class Constants {
         // Camera configuration
         public static final String LIMELIGHT_NAME = "lml3";
 
-        // Camera mounting (adjust these to match your robot!)
-        // IMPORTANT: Measure these values carefully!
+        // Camera mounting
         // - X: Positive = forward, Negative = backward from robot center
         // - Y: Positive = left, Negative = right from robot center
         // - Z: Height above ground
@@ -98,53 +101,140 @@ public final class Constants {
         // Target tracking
         public static final double TARGET_LOCK_TIMEOUT = 1.0; // seconds
 
-        // Pose estimation standard deviations (lower = more trust)
-        public static final double SINGLE_TAG_STD_DEV_X = 4.0;
-        public static final double SINGLE_TAG_STD_DEV_Y = 4.0;
-        public static final double SINGLE_TAG_STD_DEV_THETA = 8.0;
+        // Maximum detection distance for AprilTags
+        public static final double MAX_DETECTION_DISTANCE =
+                5.0; // meters (ignore tags farther than this)
+        public static final double MAX_AUTO_AIM_DISTANCE =
+                6.0; // meters (max distance for auto-aim)
+        public static final double MAX_AUTO_ALIGN_DISTANCE =
+                8.0; // meters (max distance for auto-align)
 
-        public static final double MULTI_TAG_STD_DEV_X = 0.5;
-        public static final double MULTI_TAG_STD_DEV_Y = 0.5;
-        public static final double MULTI_TAG_STD_DEV_THETA = 1.0;
+        // Pose estimation standard deviations (lower = more trust, higher = less trust)
+        // IMPORTANT: Higher values reduce vision influence, preventing drift from inaccurate
+        // measurements
+
+        // Single tag - low confidence (used during auto-align when only 1 tag visible)
+        public static final double SINGLE_TAG_STD_DEV_X = 8.0; // Translation X (was 4.0)
+        public static final double SINGLE_TAG_STD_DEV_Y = 8.0; // Translation Y (was 4.0)
+        public static final double SINGLE_TAG_STD_DEV_THETA =
+                15.0; // Rotation (was 8.0) - key for drift prevention!
+
+        // Multi tag - higher confidence but still conservative to prevent drift
+        public static final double MULTI_TAG_STD_DEV_X = 1.0; // Translation X (was 0.5)
+        public static final double MULTI_TAG_STD_DEV_Y = 1.0; // Translation Y (was 0.5)
+        public static final double MULTI_TAG_STD_DEV_THETA =
+                6.0; // Rotation (was 1.0) - CRITICAL FIX for drift!
     }
 
     /** Auto-Align to AprilTag Constants */
     public static final class AutoAlignConstants {
-        // Robot dimensions (adjust to your robot!)
+        /** Motion profile types for alignment */
+        public enum MotionProfileType {
+            TRAPEZOIDAL("Trapezoidal"),
+            EXPONENTIAL("S-Curve");
+
+            private final String displayName;
+
+            MotionProfileType(String displayName) {
+                this.displayName = displayName;
+            }
+
+            public String getDisplayName() {
+                return displayName;
+            }
+        }
+
+        // Default motion profile type
+        public static final MotionProfileType DEFAULT_MOTION_PROFILE =
+                MotionProfileType.TRAPEZOIDAL;
+
+        // Robot dimensions
+        // IMPORTANT: Measure on your actual robot! Distance from rotation center to bumper OUTER
+        // edge
         public static final double ROBOT_CENTER_TO_FRONT_BUMPER =
-                Units.inchesToMeters(16.0); // Distance from robot center to front bumper edge
+                Units.inchesToMeters(
+                        18.0); // Distance from robot center to front bumper edge (MEASURE THIS!)
 
         // Default alignment distance (from FRONT BUMPER to tag)
         public static final double DEFAULT_ALIGN_DISTANCE = 1.0; // meters from bumper to tag
 
-        // Position and angle tolerances (tighter for better precision)
-        public static final double POSITION_TOLERANCE = 0.02; // 2 cm
-        public static final double ANGLE_TOLERANCE = Units.degreesToRadians(1.0); // 1 degree
+        // Position and angle tolerances (realistic for real robot with sensor noise)
+        // Too tight = endless oscillation, too loose = inaccurate
+        public static final double POSITION_TOLERANCE = 0.03; // 3 cm (was 1cm - too tight)
+        public static final double ANGLE_TOLERANCE = Units.degreesToRadians(2.0); // 2° (was 1°)
+
+        // Velocity thresholds for completion (prevents overshoot from inertia)
+        public static final double VELOCITY_TOLERANCE = 0.02; // 2 cm/s - must be nearly stopped
+        public static final double ANGULAR_VELOCITY_TOLERANCE = 0.05; // 0.05 rad/s (~3 deg/s)
 
         // Translation PID (X and Y movement) - tuned for precision
         public static final double kP_TRANSLATION = 6.0;
-        public static final double kI_TRANSLATION =
-                0.1; // Small I term to eliminate steady-state error
-        public static final double kD_TRANSLATION = 0.4; // Increased from 0.25 for damping
-        public static final double MAX_VELOCITY_TRANSLATION =
-                6.0; // Reduced from 8.0 for smoother approach
-        public static final double MAX_ACCELERATION_TRANSLATION =
-                8.0; // Reduced from 10.0 for smoothness
+        public static final double kI_TRANSLATION = 0.1;
+        public static final double kD_TRANSLATION = 0.4;
+        public static final double MAX_VELOCITY_TRANSLATION = 6.0;
+        public static final double MAX_ACCELERATION_TRANSLATION = 8.0;
 
         // Rotation PID (Theta) - tuned for precision
-        public static final double kP_ROTATION = 8.0; // Increased from 7.0 for tighter tracking
-        public static final double kI_ROTATION = 0.05; // Small I term for final alignment
-        public static final double kD_ROTATION = 0.5; // Increased from 0.3 to reduce oscillation
-        public static final double MAX_VELOCITY_ROTATION =
-                2.0 * Math.PI; // Reduced from 2.5π for smoother rotation
-        public static final double MAX_ACCELERATION_ROTATION = 4.0 * Math.PI; // Reduced from 5.0π
+        public static final double kP_ROTATION = 8.0;
+        public static final double kI_ROTATION = 0.05;
+        public static final double kD_ROTATION = 0.5;
+        public static final double MAX_VELOCITY_ROTATION = 2.0 * Math.PI;
+        public static final double MAX_ACCELERATION_ROTATION = 4.0 * Math.PI;
+
+        public static final MotionProfileType DEFAULT_PROFILE_TYPE = MotionProfileType.TRAPEZOIDAL;
 
         // Auto-aim while driving (driver controls translation, robot controls rotation)
-        public static final double AUTO_AIM_kP = 4.0; // Rotation P gain for aim assist
-        public static final double AUTO_AIM_kI = 0.0; // Rotation I gain
-        public static final double AUTO_AIM_kD = 0.15; // Rotation D gain for damping
+        public static final double AUTO_AIM_kP = 4.0;
+        public static final double AUTO_AIM_kI = 0.0;
+        public static final double AUTO_AIM_kD = 0.15;
         public static final double AUTO_AIM_MAX_ANGULAR_VELOCITY = Math.PI; // rad/s
-        public static final double AUTO_AIM_TOLERANCE = Units.degreesToRadians(5.0); // 5 degrees
+        public static final double AUTO_AIM_TOLERANCE = Units.degreesToRadians(5.0);
+
+        // Adaptive PID - Gains change based on distance to target
+        public static final boolean ENABLE_ADAPTIVE_GAINS = true;
+
+        // Threshold distances for switching gains with hysteresis (meters)
+        public static final double ADAPTIVE_THRESHOLD_ENTER_CLOSE = 0.5; // Enter CLOSE mode at 0.5m
+        public static final double ADAPTIVE_THRESHOLD_EXIT_CLOSE = 0.6; // Exit CLOSE mode at 0.6m
+
+        // FAR gains (when distance > threshold) - Aggressive for speed
+        public static final double kP_TRANSLATION_FAR = 3.0; // Lower P (faster, less precise)
+        public static final double kD_TRANSLATION_FAR = 0.15; // Lower D (less damping)
+        public static final double kP_ROTATION_FAR = 4.0; // Reduced from 5.0
+        public static final double kD_ROTATION_FAR = 0.25; // Reduced from 0.3
+
+        // CLOSE gains (when distance < threshold) - Precise for accuracy
+        // Reduced from (8.0, 0.6) to prevent shakiness on real robot
+        public static final double kP_TRANSLATION_CLOSE = 4.5; // Was 8.0 - too aggressive
+        public static final double kD_TRANSLATION_CLOSE = 0.4; // Was 0.6 - reduced damping
+        // Reduced from (10.0, 0.8) to prevent rotation oscillation
+        public static final double kP_ROTATION_CLOSE = 5.0; // Was 10.0 - MAJOR shakiness cause
+        public static final double kD_ROTATION_CLOSE = 0.5; // Was 0.8 - reduced damping
+    }
+
+    /** LED Strip Constants */
+    public static class LEDConstants {
+        public static final int kLEDPWMPort = 5; // PWM port for LED strip
+        public static final int kLEDLength = 30; // Number of LEDs in the strip
+    }
+
+    /** Heading Lock Constants */
+    public static class HeadingLockConstants {
+        // Master enable/disable (toggled by driver with X button hold)
+        public static final boolean DEFAULT_ENABLED = false; // Start disabled
+
+        // PID gains for heading correction
+        public static final double kP = 5.0; // Proportional gain
+        public static final double kI = 0.0; // Integral gain (not needed for heading lock)
+        public static final double kD = 0.2; // Derivative gain (damping)
+
+        // Rotation deadband (joystick 0.0-1.0)
+        public static final double ROTATION_DEADBAND = 0.05; // 5% stick movement to unlock
+
+        // Correction limits
+        public static final double MAX_CORRECTION_RATE =
+                0.3; // Max 30% of max angular velocity for corrections
+        public static final double LOCK_TOLERANCE_DEGREES = 2.0; // ±2° is acceptable error
     }
 
     /**
@@ -156,9 +246,9 @@ public final class Constants {
     public static final class MechanismLimits {
         /** Example: Pivot/Arm limits (in degrees) */
         public static final class ArmLimits {
-            public static final double MIN_ANGLE = -5.0; // degrees - slightly below horizontal
-            public static final double MAX_ANGLE = 110.0; // degrees - straight up
-            public static final double WARNING_MARGIN = 10.0; // degrees - warn 10° from limits
+            public static final double MIN_ANGLE = -5.0;
+            public static final double MAX_ANGLE = 110.0;
+            public static final double WARNING_MARGIN = 10.0;
         }
 
         /** Example: Elevator/Linear mechanism limits (in meters) */

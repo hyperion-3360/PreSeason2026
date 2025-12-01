@@ -5,6 +5,7 @@ import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.wpilibj.RobotBase;
 import edu.wpi.first.wpilibj.smartdashboard.Field2d;
+import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.Constants;
@@ -31,6 +32,12 @@ public class VisionSubsystem extends SubsystemBase {
     // Target tracking
     private int m_targetTagId = -1; // -1 means no target selected
     private double m_lastTargetSeenTime = edu.wpi.first.wpilibj.Timer.getFPGATimestamp();
+    private TargetPriority m_targetPriority = TargetPriority.BALANCED;
+    private boolean m_targetLocked = false; // Prevents target switching during alignment
+    private boolean m_visionUpdatesEnabled = true; // Can disable to prevent odometry interference
+
+    // Priority chooser for SmartDashboard
+    private final SendableChooser<TargetPriority> m_priorityChooser = new SendableChooser<>();
 
     /**
      * Creates a new VisionSubsystem.
@@ -100,16 +107,35 @@ public class VisionSubsystem extends SubsystemBase {
     private void setupTelemetry() {
         m_visionField = new Field2d();
         SmartDashboard.putData("Vision/Field", m_visionField);
+
+        // Setup priority chooser
+        m_priorityChooser.setDefaultOption("Closest", TargetPriority.CLOSEST);
+        m_priorityChooser.addOption("Balanced", TargetPriority.BALANCED);
+        m_priorityChooser.addOption("Mostly Closest", TargetPriority.MOSTLY_CLOSEST);
+        m_priorityChooser.addOption("Mostly Quality", TargetPriority.MOSTLY_QUALITY);
+        m_priorityChooser.addOption("Best Quality", TargetPriority.BEST_QUALITY);
+        m_priorityChooser.addOption("Front Facing", TargetPriority.FRONT_FACING);
+        m_priorityChooser.addOption("Alliance Only", TargetPriority.ALLIANCE_ONLY);
+
+        SmartDashboard.putData("Vision/Target Priority", m_priorityChooser);
     }
 
     @Override
     public void periodic() {
+        // Update priority mode from SmartDashboard chooser
+        TargetPriority selectedPriority = m_priorityChooser.getSelected();
+        if (selectedPriority != null && selectedPriority != m_targetPriority) {
+            m_targetPriority = selectedPriority;
+        }
+
         // Get current robot pose for simulation and telemetry
         var drivetrainState = m_drivetrain.getState();
-        if (drivetrainState == null || drivetrainState.Pose == null) {
-            return; // Skip this cycle if drivetrain state is not ready
+        Pose2d currentPose = null;
+        if (drivetrainState != null && drivetrainState.Pose != null) {
+            currentPose = drivetrainState.Pose;
+        } else {
+            currentPose = new Pose2d(); // Use origin if drivetrain not ready
         }
-        Pose2d currentPose = drivetrainState.Pose;
 
         // Update simulation if running
         if (RobotBase.isSimulation() && m_visionSim != null) {
@@ -121,7 +147,9 @@ public class VisionSubsystem extends SubsystemBase {
             camera.update(currentPose);
 
             // If camera has a pose estimate, add it to drivetrain
-            if (camera.isConnected()) {
+            // Skip vision updates if disabled (e.g., during auto-align to prevent field-centric
+            // drift)
+            if (camera.isConnected() && m_visionUpdatesEnabled) {
                 camera.getLatestPose()
                         .ifPresent(
                                 pose -> {
@@ -143,6 +171,7 @@ public class VisionSubsystem extends SubsystemBase {
         Logger.recordOutput("Vision/HasTarget", hasTarget());
         Logger.recordOutput("Vision/TargetID", m_targetTagId);
         Logger.recordOutput("Vision/CameraCount", m_cameras.size());
+        Logger.recordOutput("Vision/PriorityMode", m_targetPriority.getDisplayName());
 
         // Log target pose if available
         getTargetPose()
@@ -160,8 +189,36 @@ public class VisionSubsystem extends SubsystemBase {
 
     /** Updates which AprilTag we're tracking/locked onto. */
     private void updateTargetTracking() {
+        // If target is locked, don't switch to a different tag
+        if (m_targetLocked && m_targetTagId != -1) {
+            // Just update last seen time if we still see the locked target
+            for (var camera : m_cameras) {
+                Optional<PhotonTrackedTarget> target = camera.getBestTarget();
+                if (target.isPresent() && target.get().getFiducialId() == m_targetTagId) {
+                    m_lastTargetSeenTime = edu.wpi.first.wpilibj.Timer.getFPGATimestamp();
+                    return; // Keep locked target
+                }
+            }
+
+            // If we haven't seen locked target for too long, unlock and search
+            if (edu.wpi.first.wpilibj.Timer.getFPGATimestamp() - m_lastTargetSeenTime
+                    > Constants.VisionConstants.TARGET_LOCK_TIMEOUT) {
+                System.out.println("[Vision] Lost locked target " + m_targetTagId + ", unlocking");
+                m_targetLocked = false;
+                m_targetTagId = -1;
+            }
+            return;
+        }
+
         PhotonTrackedTarget bestTarget = null;
         double bestScore = Double.MAX_VALUE;
+
+        // Get robot pose for angle calculations
+        var drivetrainState = m_drivetrain.getState();
+        Pose2d robotPose =
+                (drivetrainState != null && drivetrainState.Pose != null)
+                        ? drivetrainState.Pose
+                        : new Pose2d();
 
         // Find the best visible target across all cameras
         for (var camera : m_cameras) {
@@ -169,12 +226,30 @@ public class VisionSubsystem extends SubsystemBase {
             if (target.isPresent()) {
                 PhotonTrackedTarget currentTarget = target.get();
 
-                // Score based on distance and ambiguity
+                // Check alliance filter if ALLIANCE_ONLY mode
+                if (m_targetPriority == TargetPriority.ALLIANCE_ONLY) {
+                    if (!isAllianceTag(currentTarget.getFiducialId())) {
+                        continue; // Skip non-alliance tags
+                    }
+                }
+
+                // Calculate scoring factors
                 double distance = currentTarget.getBestCameraToTarget().getTranslation().getNorm();
+
+                // Filter out targets that are too far away
+                if (distance > Constants.VisionConstants.MAX_DETECTION_DISTANCE) {
+                    continue; // Skip targets beyond max detection distance
+                }
                 double ambiguity = currentTarget.getPoseAmbiguity();
 
-                // Lower score is better (closer + less ambiguous = better)
-                double score = distance + (ambiguity * 5.0);
+                // Calculate angle to target (how far off-center)
+                double angle = calculateAngleToTarget(currentTarget, robotPose);
+
+                // Score using configurable weights (lower is better)
+                double score =
+                        (distance * m_targetPriority.getDistanceWeight())
+                                + (ambiguity * m_targetPriority.getAmbiguityWeight())
+                                + (angle * m_targetPriority.getAngleWeight());
 
                 if (bestTarget == null || score < bestScore) {
                     bestTarget = currentTarget;
@@ -194,6 +269,57 @@ public class VisionSubsystem extends SubsystemBase {
                 m_targetTagId = -1;
             }
         }
+    }
+
+    /** Check if a tag belongs to our alliance */
+    private boolean isAllianceTag(int tagId) {
+        var alliance = edu.wpi.first.wpilibj.DriverStation.getAlliance();
+        if (alliance.isEmpty()) {
+            return true; // If unknown, allow all tags
+        }
+
+        // Safe access to alliance
+        edu.wpi.first.wpilibj.DriverStation.Alliance allianceColor = alliance.get();
+
+        // Alliance tags: Blue = 6,7,8 | Red = 3,4,5 (adjust for your field layout)
+        if (allianceColor == edu.wpi.first.wpilibj.DriverStation.Alliance.Blue) {
+            return tagId >= 6 && tagId <= 8;
+        } else if (allianceColor == edu.wpi.first.wpilibj.DriverStation.Alliance.Red) {
+            return tagId >= 3 && tagId <= 5;
+        } else {
+            return true; // Unknown alliance - allow all
+        }
+    }
+
+    /** Calculate angle offset from robot heading to target (in radians) */
+    private double calculateAngleToTarget(PhotonTrackedTarget target, Pose2d robotPose) {
+        // Get tag pose from field layout
+        Optional<Pose2d> tagPose =
+                Constants.tagLayout
+                        .getTagPose(target.getFiducialId())
+                        .map(pose3d -> pose3d.toPose2d());
+
+        if (tagPose.isEmpty()) {
+            return 0.0;
+        }
+
+        // Safe access to tag pose
+        Pose2d tag = tagPose.get();
+
+        // Calculate angle from robot to tag
+        double deltaX = tag.getX() - robotPose.getX();
+        double deltaY = tag.getY() - robotPose.getY();
+        Rotation2d angleToTag = new Rotation2d(deltaX, deltaY);
+
+        // Calculate difference from robot heading
+        double angleDifference = Math.abs(angleToTag.minus(robotPose.getRotation()).getRadians());
+
+        // Normalize to 0-π range
+        if (angleDifference > Math.PI) {
+            angleDifference = 2 * Math.PI - angleDifference;
+        }
+
+        return angleDifference;
     }
 
     /** Updates telemetry data for SmartDashboard and AdvantageScope. */
@@ -216,6 +342,7 @@ public class VisionSubsystem extends SubsystemBase {
         SmartDashboard.putNumber("Vision/Active Cameras", getActiveCameraCount());
         SmartDashboard.putNumber("Vision/Target Tag ID", m_targetTagId);
         SmartDashboard.putBoolean("Vision/Has Target", hasTarget());
+        SmartDashboard.putBoolean("Vision/Target Locked", m_targetLocked);
 
         // Individual camera data
         for (int i = 0; i < m_cameras.size(); i++) {
@@ -278,6 +405,53 @@ public class VisionSubsystem extends SubsystemBase {
     /** Clears the current target. */
     public void clearTarget() {
         m_targetTagId = -1;
+        m_targetLocked = false;
+    }
+
+    /**
+     * Locks the current target to prevent switching during alignment. Use this when starting an
+     * alignment command to ensure the robot doesn't switch targets if it gets too close or loses
+     * sight temporarily.
+     */
+    public void lockTarget() {
+        if (m_targetTagId != -1) {
+            m_targetLocked = true;
+            System.out.println("[Vision] Target " + m_targetTagId + " locked");
+        }
+    }
+
+    /** Unlocks the current target, allowing automatic target switching again. */
+    public void unlockTarget() {
+        m_targetLocked = false;
+        System.out.println("[Vision] Target unlocked");
+    }
+
+    /**
+     * Disables vision odometry updates to prevent field-centric drift during auto-align. Call this
+     * when starting auto-align.
+     */
+    public void disableVisionUpdates() {
+        m_visionUpdatesEnabled = false;
+        System.out.println(
+                "[Vision] Vision odometry updates DISABLED (preventing field-centric drift)");
+    }
+
+    /**
+     * Re-enables vision odometry updates after auto-align completes. Call this when ending
+     * auto-align.
+     */
+    public void enableVisionUpdates() {
+        m_visionUpdatesEnabled = true;
+        System.out.println("[Vision] Vision odometry updates ENABLED");
+    }
+
+    /**
+     * Checks if target is currently locked.
+     *
+     * @return true if target is locked
+     */
+    public boolean isTargetLocked() {
+        return m_targetLocked;
     }
 
     /**
@@ -355,6 +529,50 @@ public class VisionSubsystem extends SubsystemBase {
     }
 
     /**
+     * Checks if the current target is within range for auto-aim operations.
+     *
+     * @return true if target exists and is within auto-aim range
+     */
+    public boolean isTargetInAutoAimRange() {
+        if (m_targetTagId == -1) {
+            return false;
+        }
+
+        // Find the current target across all cameras
+        for (var camera : m_cameras) {
+            Optional<PhotonTrackedTarget> target = camera.getBestTarget();
+            if (target.isPresent() && target.get().getFiducialId() == m_targetTagId) {
+                double distance = target.get().getBestCameraToTarget().getTranslation().getNorm();
+                return distance <= Constants.VisionConstants.MAX_AUTO_AIM_DISTANCE;
+            }
+        }
+
+        return false; // Target not currently visible
+    }
+
+    /**
+     * Checks if the current target is within range for auto-align operations.
+     *
+     * @return true if target exists and is within auto-align range
+     */
+    public boolean isTargetInAutoAlignRange() {
+        if (m_targetTagId == -1) {
+            return false;
+        }
+
+        // Find the current target across all cameras
+        for (var camera : m_cameras) {
+            Optional<PhotonTrackedTarget> target = camera.getBestTarget();
+            if (target.isPresent() && target.get().getFiducialId() == m_targetTagId) {
+                double distance = target.get().getBestCameraToTarget().getTranslation().getNorm();
+                return distance <= Constants.VisionConstants.MAX_AUTO_ALIGN_DISTANCE;
+            }
+        }
+
+        return false; // Target not currently visible
+    }
+
+    /**
      * Gets the number of currently active (connected) cameras.
      *
      * @return Number of active cameras
@@ -375,5 +593,24 @@ public class VisionSubsystem extends SubsystemBase {
     /** For simulation: gets the vision system simulator. */
     public VisionSystemSim getVisionSim() {
         return m_visionSim;
+    }
+
+    /**
+     * Sets the target priority mode.
+     *
+     * @param priority The priority mode to use for target selection
+     */
+    public void setTargetPriority(TargetPriority priority) {
+        m_targetPriority = priority;
+        System.out.println("[Vision] Target priority changed to: " + priority.getDisplayName());
+    }
+
+    /**
+     * Gets the current target priority mode.
+     *
+     * @return Current priority mode
+     */
+    public TargetPriority getTargetPriority() {
+        return m_targetPriority;
     }
 }
