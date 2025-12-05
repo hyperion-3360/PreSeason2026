@@ -23,10 +23,13 @@ import frc.robot.subsystems.util.Diagnostics;
 import frc.robot.subsystems.util.ExponentialScale;
 import frc.robot.subsystems.util.Haptics;
 import frc.robot.subsystems.util.SCurveLimiter;
+import frc.robot.subsystems.util.Scorekeeper.Scorekeeper;
 import frc.robot.subsystems.vision.VisionSubsystem;
 import org.littletonrobotics.junction.Logger;
 
 public class RobotContainer {
+    private Scorekeeper m_scorekeeper = new Scorekeeper();
+
     private double MaxSpeed =
             TunerConstants.kSpeedAt12Volts.in(MetersPerSecond); // kSpeedAt12Volts desired top speed
     private double MaxAngularRate =

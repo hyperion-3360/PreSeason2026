@@ -43,7 +43,7 @@ public final class SkConstants {
 
         // climb time (placeholder)
         public static final double climbTime = 8.0; // seconds
-        
+
         /*
         // feeding station delay (placeholder)
         public static final double feedDelay = 0.2; // seconds
