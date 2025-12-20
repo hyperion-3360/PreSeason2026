@@ -24,7 +24,7 @@ public final class RobotConfig {
     public static final SwerveProfile ACTIVE_SWERVE = SwerveProfile.SDS_MK4I_L2;
 
     /** Change these to mix and match motor types for drive and steer. */
-    public static final MotorType DRIVE_MOTOR = MotorType.FALCON_500;
+    public static final MotorType DRIVE_MOTOR = MotorType.KRAKEN_X60;
 
     public static final MotorType STEER_MOTOR = MotorType.FALCON_500;
 
