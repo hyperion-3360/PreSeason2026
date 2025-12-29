@@ -2,16 +2,13 @@ package frc.robot.subsystems.util;
 
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.wpilibj.Timer;
+import frc.robot.Constants;
 
 /** Jerk-limited S-curve on velocity. */
 public final class SCurveLimiter {
     private double v, a;
     private final double vmax, amax, jmax;
     private double lastTs = Double.NaN;
-
-    // guardrails for dt
-    private static final double DT_MIN = 0.002; // 2 ms
-    private static final double DT_MAX = 0.100; // 100 ms
 
     public SCurveLimiter(double vmax, double amax, double jmax) {
         this.vmax = vmax; // joystick units / s (use 1.0 for full scale)
@@ -29,9 +26,12 @@ public final class SCurveLimiter {
     /** One-step update using FPGA time. */
     public double calculate(double target) {
         double now = Timer.getFPGATimestamp();
-        double dt = (Double.isNaN(lastTs) ? 0.02 : now - lastTs);
+        double dt =
+                (Double.isNaN(lastTs) ? Constants.DriveConstants.SCURVE_DT_DEFAULT : now - lastTs);
         lastTs = now;
-        if (dt < DT_MIN || dt > DT_MAX) dt = 0.02; // clamp weird timestamps
+        if (dt < Constants.DriveConstants.SCURVE_DT_MIN
+                || dt > Constants.DriveConstants.SCURVE_DT_MAX)
+            dt = Constants.DriveConstants.SCURVE_DT_DEFAULT; // clamp weird timestamps
         return calculate(target, dt);
     }
 
@@ -57,8 +57,8 @@ public final class SCurveLimiter {
         }
 
         // 5) Snap-to-zero to kill micro-oscillations (scale with limits)
-        double epsIn = 1e-3 * vmax;
-        double epsOut = 2e-3 * vmax;
+        double epsIn = Constants.DriveConstants.SCURVE_SNAP_INPUT_THRESHOLD * vmax;
+        double epsOut = Constants.DriveConstants.SCURVE_SNAP_OUTPUT_THRESHOLD * vmax;
         if (Math.abs(vCmd) < epsIn && Math.abs(v) < epsOut) {
             v = 0;
             a = 0;

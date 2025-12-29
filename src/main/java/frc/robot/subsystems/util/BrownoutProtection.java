@@ -29,8 +29,6 @@ public class BrownoutProtection {
     // Voltage drops during hard accel are normal and temporary - we only care about sustained low
     // voltage
     private double m_lowVoltageStartTime = -1.0; // When voltage first dropped below threshold
-    private static final double VOLTAGE_DEBOUNCE_TIME =
-            0.5; // Must be low for 500ms to trigger (tune if needed)
     private BatteryStatus m_pendingStatus =
             BatteryStatus.GOOD; // Status waiting to be confirmed by debounce
 
@@ -90,7 +88,8 @@ public class BrownoutProtection {
                 // Restart timer to ensure this new worse status is also sustained
                 m_lowVoltageStartTime = currentTime;
                 m_pendingStatus = instantaneousStatus;
-            } else if (currentTime - m_lowVoltageStartTime >= VOLTAGE_DEBOUNCE_TIME) {
+            } else if (currentTime - m_lowVoltageStartTime
+                    >= Constants.DriveConstants.BROWNOUT_DEBOUNCE_TIME) {
                 // Voltage has been consistently low for the full debounce period
                 // Confirm the status degradation
                 m_currentStatus = instantaneousStatus;

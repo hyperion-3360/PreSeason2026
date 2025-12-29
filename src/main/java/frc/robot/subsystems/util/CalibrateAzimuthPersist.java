@@ -164,28 +164,61 @@ public class CalibrateAzimuthPersist extends Command {
         return y;
     }
 
-    /** Persist MagnetOffset to FLASH; portable across Phoenix6 versions. */
+    /**
+     * Persist MagnetOffset to FLASH with retry logic for reliability.
+     *
+     * <p>FLASH writes can fail due to CAN bus noise, especially on CANivore. This method retries up
+     * to 3 times with delays to ensure successful persistence.
+     */
     private static StatusCode applyOffsetPersist(CANcoder enc, double offsetTurns) {
-        CANcoderConfiguration cfg = new CANcoderConfiguration();
-        enc.getConfigurator().refresh(cfg); // start from current config
-        cfg.MagnetSensor.MagnetOffset = offsetTurns; // set new offset
-        // CANivore requires longer timeout (100ms) for reliable FLASH writes
-        StatusCode sc = enc.getConfigurator().apply(cfg, 0.100); // persist to FLASH
+        final int MAX_RETRIES = 3;
+        final double RETRY_DELAY_SEC = 0.050; // 50ms between retries
 
-        // Use generic API so this compiles everywhere, and still logs exactly what happened.
-        String name = sc.getName();
-        if (sc.isError()) {
-            System.out.printf("[SwerveCal][ERROR] FLASH write status: %s%n", name);
-        } else if (sc.isWarning()) {
-            // FLASH commits often cause a brief comm warning; that's expected.
+        for (int attempt = 0; attempt < MAX_RETRIES; attempt++) {
+            CANcoderConfiguration cfg = new CANcoderConfiguration();
+            enc.getConfigurator().refresh(cfg); // start from current config
+            cfg.MagnetSensor.MagnetOffset = offsetTurns; // set new offset
+            // CANivore requires longer timeout (150ms) for reliable FLASH writes
+            StatusCode sc = enc.getConfigurator().apply(cfg, 0.150); // persist to FLASH
+
+            // Use generic API so this compiles everywhere, and still logs exactly what happened.
+            String name = sc.getName();
+
+            // Check if write succeeded
+            if (sc.isOK() || sc.isWarning()) {
+                if (attempt > 0) {
+                    System.out.printf(
+                            "[SwerveCal] FLASH write succeeded on attempt %d/%d%n",
+                            attempt + 1, MAX_RETRIES);
+                }
+                if (sc.isWarning()) {
+                    // FLASH commits often cause a brief comm warning; that's expected.
+                    System.out.printf(
+                            "[SwerveCal][WARN] FLASH write status: %s (expected during FLASH commit)%n",
+                            name);
+                } else {
+                    System.out.printf("[SwerveCal] FLASH write status: %s%n", name);
+                }
+                return sc;
+            }
+
+            // Write failed - log and retry if attempts remain
             System.out.printf(
-                    "[SwerveCal][WARN] FLASH write status: %s (expected during FLASH commit)%n",
-                    name);
-        } else {
-            System.out.printf("[SwerveCal] FLASH write status: %s%n", name);
+                    "[SwerveCal][WARN] FLASH write attempt %d/%d failed: %s%n",
+                    attempt + 1, MAX_RETRIES, name);
+
+            if (attempt < MAX_RETRIES - 1) {
+                System.out.printf(
+                        "[SwerveCal] Waiting %.0fms before retry...%n", RETRY_DELAY_SEC * 1000);
+                Timer.delay(RETRY_DELAY_SEC);
+            }
         }
 
-        return sc;
+        // All retries exhausted - critical failure
+        System.err.printf(
+                "[SwerveCal][ERROR] FLASH write FAILED after %d attempts! Calibration may not persist.%n",
+                MAX_RETRIES);
+        return StatusCode.GeneralError;
     }
 
     /** Logs one module's details: abs-now, old/new offsets, read-back, delta, and status. */

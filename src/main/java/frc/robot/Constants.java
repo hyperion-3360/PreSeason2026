@@ -71,6 +71,23 @@ public final class Constants {
         public static final double SCURVE_OMEGA_MAX_JERK = 200.0; // joystick units/s³
 
         public static final boolean SCURVE_ENABLED_DEFAULT = true;
+
+        // S-Curve delta-time limits (for periodic loop timing)
+        // These ensure S-curve calculations remain stable across varying loop times
+        public static final double SCURVE_DT_MIN = 0.002; // 2ms minimum (500 Hz max)
+        public static final double SCURVE_DT_MAX = 0.100; // 100ms maximum (10 Hz min)
+        public static final double SCURVE_DT_DEFAULT = 0.020; // 20ms nominal (50 Hz)
+
+        // S-Curve snap-to-zero thresholds (as fraction of max velocity)
+        // When joystick input and output velocity are both below these thresholds,
+        // snap to exactly zero to eliminate drift and stick jitter
+        public static final double SCURVE_SNAP_INPUT_THRESHOLD = 0.001; // 0.1% of max
+        public static final double SCURVE_SNAP_OUTPUT_THRESHOLD = 0.002; // 0.2% of max
+
+        // Brownout protection voltage debounce time
+        // Voltage must remain low for this duration before triggering speed limiting
+        // This prevents false alarms from transient voltage spikes during acceleration
+        public static final double BROWNOUT_DEBOUNCE_TIME = 0.5; // seconds
     }
 
     /** Vision Subsystem Constants */

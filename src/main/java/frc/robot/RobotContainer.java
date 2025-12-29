@@ -81,8 +81,10 @@ public class RobotContainer {
     /* Setting up bindings for necessary control of the swerve drive platform */
     private final SwerveRequest.FieldCentric drive =
             new SwerveRequest.FieldCentric()
-                    .withDeadband(0.0) // No deadband here - already applied in MathUtil.applyDeadband
-                    .withRotationalDeadband(0.0) // No deadband here - already applied in MathUtil.applyDeadband
+                    .withDeadband(
+                            0.0) // No deadband here - already applied in MathUtil.applyDeadband
+                    .withRotationalDeadband(
+                            0.0) // No deadband here - already applied in MathUtil.applyDeadband
                     .withDriveRequestType(
                             DriveRequestType
                                     .OpenLoopVoltage); // Use open-loop control for drive motors
@@ -114,11 +116,9 @@ public class RobotContainer {
     /**
      * Called periodically from Robot.robotPeriodic() every 20ms (50Hz).
      *
-     * <p>This runs BEFORE CommandScheduler to ensure fresh data for all commands.
-     * Updates:
-     * - Battery voltage monitoring and brownout protection
-     * - AdvantageKit logging (battery, inputs, SysId routine)
-     * - Any custom telemetry or periodic checks
+     * <p>This runs BEFORE CommandScheduler to ensure fresh data for all commands. Updates: -
+     * Battery voltage monitoring and brownout protection - AdvantageKit logging (battery, inputs,
+     * SysId routine) - Any custom telemetry or periodic checks
      */
     public void periodic() {
         brownoutProtection.update();
@@ -325,7 +325,9 @@ public class RobotContainer {
                                         () -> {
                                             String newRoutine = drivetrain.cycleSysIdRoutine();
                                             System.out.println(
-                                                    "[SysId] Switched to " + newRoutine + " routine");
+                                                    "[SysId] Switched to "
+                                                            + newRoutine
+                                                            + " routine");
                                             Haptics.buzzShort(joystick).schedule();
                                         })
                                 .ignoringDisable(true));
