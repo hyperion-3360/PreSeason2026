@@ -62,8 +62,9 @@ public class TunerConstants {
     private static final SteerFeedbackType kSteerFeedbackType = SteerFeedbackType.FusedCANcoder;
 
     // The stator current at which the wheels start to slip;
-    // This needs to be tuned to your individual robot
-    private static final Current kSlipCurrent = Amps.of(120.0);
+    // Dynamically set based on motor type (Falcon: 55A, Kraken: 75A)
+    // Must be below stator limit to be detectable
+    private static final Current kSlipCurrent = Amps.of(RobotConfig.driveSlipCurrentAmps());
 
     // Initial configs for the drive and steer motors and the azimuth encoder; these cannot be null.
     // Some configs will be overwritten; check the `with*InitialConfigs()` API documentation.

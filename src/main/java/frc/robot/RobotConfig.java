@@ -75,20 +75,24 @@ public final class RobotConfig {
     // ---- Motor-Specific Current Limits ----
     private static final class KrakenLimits {
         // Kraken X60 can handle more current and has better thermal management
-        static final double DRIVE_STATOR_LIMIT_A = 80.0;
-        static final double DRIVE_SUPPLY_LIMIT_A = 60.0;
-        static final double DRIVE_SUPPLY_BURST_A = 80.0;
-        static final double DRIVE_SUPPLY_BURST_TIME_S = 0.5;
+        // "Balanced" config - Good performance while staying safe
+        static final double DRIVE_STATOR_LIMIT_A = 80.0; // Thermal protection (continuous)
+        static final double DRIVE_SUPPLY_LIMIT_A = 60.0; // Battery protection (continuous)
+        static final double DRIVE_SUPPLY_BURST_A = 120.0; // Burst allowance (+40A for 1s)
+        static final double DRIVE_SUPPLY_BURST_TIME_S = 1.0; // 1 second burst window
         static final double STEER_STATOR_LIMIT_A = 60.0;
+        static final double SLIP_CURRENT_A = 75.0; // Just below stator limit for slip detection
     }
 
     private static final class FalconLimits {
-        // Falcon 500 thermal limits - more conservative than Kraken
-        static final double DRIVE_STATOR_LIMIT_A = 60.0;
-        static final double DRIVE_SUPPLY_LIMIT_A = 50.0;
-        static final double DRIVE_SUPPLY_BURST_A = 65.0;
-        static final double DRIVE_SUPPLY_BURST_TIME_S = 0.5;
+        // Falcon 500 thermal limits - balanced for competition
+        // "Balanced" config - ~30% more burst performance vs conservative
+        static final double DRIVE_STATOR_LIMIT_A = 60.0; // Thermal protection (continuous)
+        static final double DRIVE_SUPPLY_LIMIT_A = 50.0; // Battery protection (continuous)
+        static final double DRIVE_SUPPLY_BURST_A = 80.0; // Burst allowance (+30A for 0.75s)
+        static final double DRIVE_SUPPLY_BURST_TIME_S = 0.75; // 0.75 second burst window
         static final double STEER_STATOR_LIMIT_A = 40.0;
+        static final double SLIP_CURRENT_A = 55.0; // Just below stator limit for slip detection
     }
 
     // ---- Public helpers used by TunerConstants ----
@@ -233,5 +237,9 @@ public final class RobotConfig {
         return isSteerKraken()
                 ? KrakenLimits.STEER_STATOR_LIMIT_A
                 : FalconLimits.STEER_STATOR_LIMIT_A;
+    }
+
+    public static double driveSlipCurrentAmps() {
+        return isDriveKraken() ? KrakenLimits.SLIP_CURRENT_A : FalconLimits.SLIP_CURRENT_A;
     }
 }
