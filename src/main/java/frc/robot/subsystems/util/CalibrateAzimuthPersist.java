@@ -169,7 +169,8 @@ public class CalibrateAzimuthPersist extends Command {
         CANcoderConfiguration cfg = new CANcoderConfiguration();
         enc.getConfigurator().refresh(cfg); // start from current config
         cfg.MagnetSensor.MagnetOffset = offsetTurns; // set new offset
-        StatusCode sc = enc.getConfigurator().apply(cfg); // persist to FLASH
+        // CANivore requires longer timeout (100ms) for reliable FLASH writes
+        StatusCode sc = enc.getConfigurator().apply(cfg, 0.100); // persist to FLASH
 
         // Use generic API so this compiles everywhere, and still logs exactly what happened.
         String name = sc.getName();

@@ -173,7 +173,8 @@ public class TunerConstants {
         if (!RobotBase.isReal()) return Rotations.of(0.0);
 
         var cfg = new CANcoderConfiguration();
-        try (CANcoder enc = new CANcoder(encId)) { // <- closes automatically
+        // CRITICAL: Must specify CANivore bus to read from correct device!
+        try (CANcoder enc = new CANcoder(encId, kCANBus.getName())) { // <- closes automatically
             var sc = enc.getConfigurator().refresh(cfg);
             if (!sc.isOK()) {
                 System.out.printf(
