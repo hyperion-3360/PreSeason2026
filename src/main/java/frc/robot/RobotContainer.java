@@ -109,9 +109,6 @@ public class RobotContainer {
                 "BR", RobotConfig.brEnc(), RobotConfig.brSteer(), RobotConfig.brDrive());
 
         drivetrain.initPathPlanning();
-
-        
-
     }
 
     /** Called periodically to update battery voltage monitoring and logging */
