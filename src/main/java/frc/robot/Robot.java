@@ -15,7 +15,18 @@ public class Robot extends TimedRobot {
 
     @Override
     public void robotPeriodic() {
+        // Call RobotContainer's periodic() to update custom subsystems
+        // (brownout protection, logging, telemetry, etc.)
+        //
+        // CRITICAL: This runs BEFORE CommandScheduler to ensure data consistency.
+        // - Performance: Sensors/battery read once per cycle, cached for all commands
+        // - Safety: Commands use fresh voltage data for brownout speed limiting
+        // - Correctness: Logging captures actual state that commands will use
+        // Without this order, commands would use stale 20ms-old data!
         m_robotContainer.periodic();
+
+        // Run the command scheduler - executes all scheduled commands
+        // This must run every loop to update command-based framework
         CommandScheduler.getInstance().run();
     }
 

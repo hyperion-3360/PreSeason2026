@@ -111,7 +111,15 @@ public class RobotContainer {
         drivetrain.initPathPlanning();
     }
 
-    /** Called periodically to update battery voltage monitoring and logging */
+    /**
+     * Called periodically from Robot.robotPeriodic() every 20ms (50Hz).
+     *
+     * <p>This runs BEFORE CommandScheduler to ensure fresh data for all commands.
+     * Updates:
+     * - Battery voltage monitoring and brownout protection
+     * - AdvantageKit logging (battery, inputs, SysId routine)
+     * - Any custom telemetry or periodic checks
+     */
     public void periodic() {
         brownoutProtection.update();
 
