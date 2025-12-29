@@ -135,6 +135,9 @@ public class RobotContainer {
         // Log max speeds (useful for seeing brownout effects)
         Logger.recordOutput("RobotState/MaxSpeed", MaxSpeed);
         Logger.recordOutput("RobotState/MaxAngularRate", MaxAngularRate);
+
+        // Log current SysId routine
+        Logger.recordOutput("SysId/CurrentRoutine", drivetrain.getCurrentSysIdRoutineName());
     }
 
     private void configureBindings() {
@@ -305,6 +308,19 @@ public class RobotContainer {
         joystick.start()
                 .and(joystick.x())
                 .whileTrue(drivetrain.sysIdQuasistatic(Direction.kReverse));
+
+        // Cycle through SysId routines: Back + B button
+        joystick.back()
+                .and(joystick.b())
+                .onTrue(
+                        Commands.runOnce(
+                                        () -> {
+                                            String newRoutine = drivetrain.cycleSysIdRoutine();
+                                            System.out.println(
+                                                    "[SysId] Switched to " + newRoutine + " routine");
+                                            Haptics.buzzShort(joystick).schedule();
+                                        })
+                                .ignoringDisable(true));
 
         // ========== FIELD-CENTRIC RESET ==========
         // Press L1 (left bumper) twice quickly to reset field-centric heading

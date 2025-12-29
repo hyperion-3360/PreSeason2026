@@ -119,6 +119,7 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
 
     /* The SysId routine to test */
     private SysIdRoutine m_sysIdRoutineToApply = m_sysIdRoutineTranslation;
+    private String m_currentSysIdRoutineName = "Translation"; // For logging
 
     /**
      * Constructs a CTRE SwerveDrivetrain using the specified constants.
@@ -221,6 +222,34 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
      */
     public Command sysIdDynamic(SysIdRoutine.Direction direction) {
         return m_sysIdRoutineToApply.dynamic(direction);
+    }
+
+    /**
+     * Cycles to the next SysId routine (Translation → Steer → Rotation → Translation)
+     *
+     * @return Name of the newly selected routine
+     */
+    public String cycleSysIdRoutine() {
+        if (m_sysIdRoutineToApply == m_sysIdRoutineTranslation) {
+            m_sysIdRoutineToApply = m_sysIdRoutineSteer;
+            m_currentSysIdRoutineName = "Steer";
+        } else if (m_sysIdRoutineToApply == m_sysIdRoutineSteer) {
+            m_sysIdRoutineToApply = m_sysIdRoutineRotation;
+            m_currentSysIdRoutineName = "Rotation";
+        } else {
+            m_sysIdRoutineToApply = m_sysIdRoutineTranslation;
+            m_currentSysIdRoutineName = "Translation";
+        }
+        return m_currentSysIdRoutineName;
+    }
+
+    /**
+     * Gets the name of the current SysId routine
+     *
+     * @return Name of current routine ("Translation", "Steer", or "Rotation")
+     */
+    public String getCurrentSysIdRoutineName() {
+        return m_currentSysIdRoutineName;
     }
 
     @Override
