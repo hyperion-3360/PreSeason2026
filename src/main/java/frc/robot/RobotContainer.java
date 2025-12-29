@@ -180,7 +180,7 @@ public class RobotContainer {
                                 rCmd = rScaled * MaxAngularRate;
                             }
 
-                            // Apply brownout protection to translation
+                            // Apply brownout protection to translation and rotation
                             double speedScale = brownoutProtection.getSpeedScaleFactor();
                             xCmd *= speedScale;
                             yCmd *= speedScale;
@@ -191,15 +191,17 @@ public class RobotContainer {
                                         drivetrain.getState().Pose.getRotation();
                                 Rotation2d targetAngle = vision.getAngleToTarget();
 
+                                // Calculate PID output and apply brownout protection
                                 rCmd =
                                         MathUtil.clamp(
-                                                autoAimPID.calculate(
-                                                        currentHeading.getRadians(),
-                                                        targetAngle.getRadians()),
-                                                -Constants.AutoAlignConstants
-                                                        .AUTO_AIM_MAX_ANGULAR_VELOCITY,
-                                                Constants.AutoAlignConstants
-                                                        .AUTO_AIM_MAX_ANGULAR_VELOCITY);
+                                                        autoAimPID.calculate(
+                                                                currentHeading.getRadians(),
+                                                                targetAngle.getRadians()),
+                                                        -Constants.AutoAlignConstants
+                                                                .AUTO_AIM_MAX_ANGULAR_VELOCITY,
+                                                        Constants.AutoAlignConstants
+                                                                .AUTO_AIM_MAX_ANGULAR_VELOCITY)
+                                                * speedScale; // CRITICAL: Apply brownout limit!
                             } else {
                                 rCmd *= speedScale;
                             }
@@ -223,8 +225,10 @@ public class RobotContainer {
 
         // ========== VISION ALIGNMENT ==========
         // Right bumper: Align to AprilTag at 1 meter distance
+        // CRITICAL: 5s timeout prevents command from hanging if target lost or drivetrain null
         joystick.rightBumper()
-                .whileTrue(AlignToTagCommand.withDefaultDistance(drivetrain, vision))
+                .whileTrue(
+                        AlignToTagCommand.withDefaultDistance(drivetrain, vision).withTimeout(5.0))
                 .onFalse(
                         Commands.runOnce(
                                 () -> System.out.println("[Align] Button released"), drivetrain));

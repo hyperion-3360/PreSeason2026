@@ -341,19 +341,41 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
     }
 
     public void initPathPlanning() {
-        // configurer dans pathplanner
+        // PathPlanner RobotConfig - use GUI settings or fallback to TunerConstants values
         RobotConfig config;
         try {
             config = RobotConfig.fromGUISettings();
+            System.out.println("[PathPlanner] Loaded RobotConfig from GUI settings");
         } catch (Exception e) {
-            // Handle exception as needed
+            // CRITICAL: Use actual robot values from TunerConstants, NOT dummy values!
+            System.err.println(
+                    "[PathPlanner] WARNING: Failed to load GUI settings, using TunerConstants fallback");
             e.printStackTrace();
-            config =
-                    new RobotConfig(
-                            1,
-                            1,
-                            new ModuleConfig(1, 1, 1, DCMotor.getNEO(4), 1, 1),
-                            new Translation2d(1, 1));
+
+            // Use real robot parameters from TunerConstants
+            double massKg = 45.0; // ~100 lbs typical FRC robot
+            double moi = 6.0; // Moment of inertia kg*m^2 (typical swerve)
+
+            // Module config using TunerConstants values
+            ModuleConfig moduleConfig =
+                    new ModuleConfig(
+                            frc.robot.RobotConfig.wheelRadiusIn()
+                                    * 0.0254, // Convert inches to meters
+                            TunerConstants.kSpeedAt12Volts.in(
+                                    MetersPerSecond), // Max drive speed
+                            1.2, // Wheel COF (coefficient of friction) - typical for carpet
+                            DCMotor.getKrakenX60(
+                                    1), // Drive motor (Kraken or Falcon - update if needed)
+                            40.0, // Drive current limit (A)
+                            1); // Drive motor count per module
+
+            // Module locations from TunerConstants (front-left position as example)
+            Translation2d moduleLocation =
+                    new Translation2d(
+                            Inches.of(12.40625).in(Meters), // X position from TunerConstants
+                            Inches.of(12.40625).in(Meters)); // Y position from TunerConstants
+
+            config = new RobotConfig(massKg, moi, moduleConfig, moduleLocation);
         }
 
         // Configure AutoBuilder last
