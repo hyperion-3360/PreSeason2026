@@ -22,10 +22,10 @@ public class CalibrateAzimuthPersist extends Command {
 
     // CANcoder IDs from RobotConfig - automatically switches with ACTIVE_SWERVE profile
     // Using CANivore bus for reliable CAN FD communication
-    private final CANcoder frontLeft = new CANcoder(RobotConfig.flEnc(), "CANivore_3360");
-    private final CANcoder frontRight = new CANcoder(RobotConfig.frEnc(), "CANivore_3360");
-    private final CANcoder backLeft = new CANcoder(RobotConfig.blEnc(), "CANivore_3360");
-    private final CANcoder backRight = new CANcoder(RobotConfig.brEnc(), "CANivore_3360");
+    private final CANcoder frontLeft = new CANcoder(RobotConfig.flEnc(), RobotConfig.CANIVORE_NAME);
+    private final CANcoder frontRight = new CANcoder(RobotConfig.frEnc(), RobotConfig.CANIVORE_NAME);
+    private final CANcoder backLeft = new CANcoder(RobotConfig.blEnc(), RobotConfig.CANIVORE_NAME);
+    private final CANcoder backRight = new CANcoder(RobotConfig.brEnc(), RobotConfig.CANIVORE_NAME);
 
     private boolean done = false;
 
