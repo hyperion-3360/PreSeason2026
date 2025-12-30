@@ -209,7 +209,7 @@ public class BrownoutProtection {
                 colorCode = ANSI_RED;
                 statusText =
                         String.format(
-                                "%sCRITICAL BATTERY: %.2fV - CHANGE BATTERY IMMEDIATELY! Speed limited to 70%%%s",
+                                "%sCRITICAL BATTERY: %.2fV - CHANGE BATTERY IMMEDIATELY! Speed limited to 75%%%s",
                                 colorCode, voltage, ANSI_RESET);
                 System.err.println(statusText);
                 break;

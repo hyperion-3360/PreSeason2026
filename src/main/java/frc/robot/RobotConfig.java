@@ -6,25 +6,31 @@ package frc.robot;
  *
  * <p>NOTE: Fill the SDS_MK4N constants with your real values (IDs, inversions) once your MK4n kit
  * is installed. Gear ratios are set to official SDS MK4n L2 specs.
+ *
+ * <p>Documentation: - SDS MK4n specs:
+ * https://www.swervedrivespecialties.com/products/mk4n-swerve-module - WCP SwerveX specs:
+ * https://wcproducts.com/products/swervex - Falcon 500 specs:
+ * https://store.ctr-electronics.com/falcon-500-powered-by-talon-fx/ - Kraken X60 specs:
+ * https://store.ctr-electronics.com/kraken-x60/
  */
 public final class RobotConfig {
     private RobotConfig() {}
 
     public enum SwerveProfile {
         WCP_SWERVEX_CTRE,
-        SDS_MK4N_L2 // MK4n (newer version), not MK4i
+        SDS_MK4N_L2
     }
 
     public enum MotorType {
-        KRAKEN_X60, // More powerful, better cooling
-        FALCON_500 // Standard TalonFX
+        KRAKEN_X60,
+        FALCON_500
     }
 
     /** Change this single line to switch robot hardware profile. */
     public static final SwerveProfile ACTIVE_SWERVE = SwerveProfile.SDS_MK4N_L2;
 
     /** Change these to mix and match motor types for drive and steer. */
-    public static final MotorType DRIVE_MOTOR = MotorType.FALCON_500;
+    public static final MotorType DRIVE_MOTOR = MotorType.KRAKEN_X60;
 
     public static final MotorType STEER_MOTOR = MotorType.FALCON_500;
 
@@ -33,7 +39,7 @@ public final class RobotConfig {
 
     // ---- WCP Swerve X (current robot) ----
     private static final class WCP {
-        // IDs from your current TunerConstants.java
+        // IDs for swerves motors
         static final int FL_DRIVE = 7, FL_STEER = 8, FL_ENC = 16;
         static final int FR_DRIVE = 5, FR_STEER = 6, FR_ENC = 14;
         static final int BL_DRIVE = 1, BL_STEER = 2, BL_ENC = 13;
@@ -50,18 +56,21 @@ public final class RobotConfig {
         static final double STEER_GEAR_RATIO = 13.371428571428572;
         static final double COUPLE_RATIO = 3.8181818181818183;
         static final double WHEEL_RADIUS_IN = 1.875; // inches
-        static final double SPEED_12V_MPS = 4.06; // m/s (feedforward scale)
+
+        // Max speeds at 12V (motor-dependent)
+        static final double SPEED_12V_FALCON = 4.06; // m/s with Falcon 500
+        static final double SPEED_12V_KRAKEN = 4.88; // m/s with Kraken X60 (~20% faster)
     }
 
     // ---- SDS MK4n L2 (new kit) ----
     private static final class MK4N {
-        // TODO: Replace placeholders with real IDs when wired
+        // IDs for swerves motors
         static final int FL_DRIVE = 1, FL_STEER = 2, FL_ENC = 33;
         static final int FR_DRIVE = 3, FR_STEER = 4, FR_ENC = 32;
         static final int BL_DRIVE = 7, BL_STEER = 8, BL_ENC = 34;
         static final int BR_DRIVE = 5, BR_STEER = 6, BR_ENC = 31;
 
-        // TODO: Confirm/adjust inversions for MK4n once installed
+        // Inversions as in current project
         static final boolean FL_STEER_INV = WCP.FL_STEER_INV, FL_ENC_INV = WCP.FL_ENC_INV;
         static final boolean FR_STEER_INV = WCP.FR_STEER_INV, FR_ENC_INV = WCP.FR_ENC_INV;
         static final boolean BL_STEER_INV = WCP.BL_STEER_INV, BL_ENC_INV = WCP.BL_ENC_INV;
@@ -72,7 +81,10 @@ public final class RobotConfig {
         static final double STEER_GEAR_RATIO = 21.428571428571427; // MK4n = 150/7
         static final double COUPLE_RATIO = 3.5555555555555554; // Coupling ratio for MK4n
         static final double WHEEL_RADIUS_IN = 2.0; // 4" wheel -> 2.0" radius
-        static final double SPEED_12V_MPS = 4.73; // Theoretical max speed L2 w/ Falcon 500
+
+        // Max speeds at 12V (motor-dependent)
+        static final double SPEED_12V_FALCON = 4.73; // m/s with Falcon 500
+        static final double SPEED_12V_KRAKEN = 5.68; // m/s with Kraken X60 (~20% faster)
     }
 
     // ---- Motor-Specific Current Limits ----
@@ -200,7 +212,12 @@ public final class RobotConfig {
     }
 
     public static double speedAt12V() {
-        return isMk4n() ? MK4N.SPEED_12V_MPS : WCP.SPEED_12V_MPS;
+        // Select speed based on swerve profile AND drive motor type
+        if (isMk4n()) {
+            return isDriveKraken() ? MK4N.SPEED_12V_KRAKEN : MK4N.SPEED_12V_FALCON;
+        } else {
+            return isDriveKraken() ? WCP.SPEED_12V_KRAKEN : WCP.SPEED_12V_FALCON;
+        }
     }
 
     // ---- Current Limit Getters (based on motor type) ----

@@ -4,11 +4,13 @@ import static edu.wpi.first.units.Units.*;
 
 import com.ctre.phoenix6.swerve.SwerveModule.DriveRequestType;
 import com.ctre.phoenix6.swerve.SwerveRequest;
-import com.pathplanner.lib.commands.PathPlannerAuto;
+import com.pathplanner.lib.auto.AutoBuilder;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.wpilibj.RobotBase;
+import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
@@ -80,8 +82,7 @@ public class RobotContainer {
 
     /* Setting up bindings for necessary control of the swerve drive platform */
     private final SwerveRequest.FieldCentric drive =
-            new SwerveRequest.FieldCentric()
-                    .withDriveRequestType(DriveRequestType.OpenLoopVoltage);
+            new SwerveRequest.FieldCentric().withDriveRequestType(DriveRequestType.OpenLoopVoltage);
 
     private final SwerveRequest.SwerveDriveBrake brake = new SwerveRequest.SwerveDriveBrake();
     private final SwerveRequest.PointWheelsAt point = new SwerveRequest.PointWheelsAt();
@@ -91,6 +92,9 @@ public class RobotContainer {
     // Subsystems
     public final CommandSwerveDrivetrain drivetrain = TunerConstants.createDrivetrain();
     public final VisionSubsystem vision = new VisionSubsystem(drivetrain);
+
+    // Autonomous chooser - allows selecting auto routines from dashboard
+    private final SendableChooser<Command> autoChooser;
 
     public RobotContainer() {
         configureBindings();
@@ -105,6 +109,10 @@ public class RobotContainer {
                 "BR", RobotConfig.brEnc(), RobotConfig.brSteer(), RobotConfig.brDrive());
 
         drivetrain.initPathPlanning();
+
+        // Build auto chooser from all PathPlanner autos in deploy/pathplanner/autos/
+        autoChooser = AutoBuilder.buildAutoChooser();
+        SmartDashboard.putData("Auto Chooser", autoChooser);
     }
 
     /**
@@ -369,6 +377,7 @@ public class RobotContainer {
     }
 
     public Command getAutonomousCommand() {
-        return new PathPlannerAuto("Path");
+        // Return the selected auto from the chooser
+        return autoChooser.getSelected();
     }
 }

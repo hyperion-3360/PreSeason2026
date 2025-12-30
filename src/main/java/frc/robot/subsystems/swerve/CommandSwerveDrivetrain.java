@@ -19,7 +19,6 @@ import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.numbers.N1;
 import edu.wpi.first.math.numbers.N3;
-import edu.wpi.first.math.system.plant.DCMotor;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj.Notifier;
@@ -361,12 +360,12 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
                     new ModuleConfig(
                             frc.robot.RobotConfig.wheelRadiusIn()
                                     * 0.0254, // Convert inches to meters
-                            TunerConstants.kSpeedAt12Volts.in(
-                                    MetersPerSecond), // Max drive speed
+                            frc.robot.RobotConfig.speedAt12V(), // Max drive speed (m/s) - dynamic
                             1.2, // Wheel COF (coefficient of friction) - typical for carpet
                             frc.robot.RobotConfig.getDriveMotor(
                                     1), // Drive motor (dynamically selected from RobotConfig)
-                            frc.robot.RobotConfig.driveStatorLimitAmps(), // Drive current limit (A) - dynamic
+                            frc.robot.RobotConfig
+                                    .driveStatorLimitAmps(), // Drive current limit (A) - dynamic
                             1); // Drive motor count per module
 
             // Module locations from TunerConstants (front-left position as example)
