@@ -41,21 +41,21 @@ public final class Constants {
 
         // Battery voltage thresholds for brownout protection
         // NOTE: These are tuned for competition - battery will drop during match!
-        // Typical voltages: Start=12.5V, Mid-match=11.5V, End=10.5-11.5V
+        // Typical voltages: Fresh=12.5V, Mid-match=11.5V, End=10.5-11.5V, roboRIO brownout=6.8V
         public static final double BATTERY_NOMINAL_VOLTAGE = 12.0; // Fully charged battery voltage
         public static final double BATTERY_WARNING_VOLTAGE =
-                8.5; // Start warning (yellow) - battery getting low, plan to swap soon
+                11.0; // Start warning (yellow) - battery getting low, plan to swap soon
         public static final double BATTERY_CRITICAL_VOLTAGE =
-                7.5; // Critical level (red) - motors may start losing power
+                9.5; // Critical level (red) - battery significantly degraded, limit performance
         public static final double BATTERY_BROWNOUT_VOLTAGE =
-                7.0; // Severe brownout (emergency) - approaching roboRIO brownout (6.8V)
+                8.0; // Severe brownout (emergency) - approaching roboRIO brownout (6.8V)
 
         // Speed scaling factors based on voltage
         // NOTE: Only CRITICAL and BROWNOUT levels limit speed - WARNING just alerts
         public static final double SPEED_SCALE_WARNING = 1.0; // 100% speed - just a warning
         public static final double SPEED_SCALE_CRITICAL =
-                0.80; // 80% speed when motors losing power
-        public static final double SPEED_SCALE_BROWNOUT = 0.60; // 60% speed at emergency levels
+                0.75; // 75% speed when battery critically low
+        public static final double SPEED_SCALE_BROWNOUT = 0.50; // 50% speed at emergency levels
 
         // S-Curve motion profile limits
         public static final double SCURVE_VX_MAX_VELOCITY = 1.0; // joystick units/s
@@ -83,6 +83,10 @@ public final class Constants {
         // snap to exactly zero to eliminate drift and stick jitter
         public static final double SCURVE_SNAP_INPUT_THRESHOLD = 0.001; // 0.1% of max
         public static final double SCURVE_SNAP_OUTPUT_THRESHOLD = 0.002; // 0.2% of max
+
+        // S-Curve anti-windup saturation threshold (as fraction of max velocity)
+        // When velocity reaches this threshold (99.9%), stop acceleration to prevent overshoot
+        public static final double SCURVE_ANTIWINDUP_THRESHOLD = 0.999; // 99.9% of max
 
         // Brownout protection voltage debounce time
         // Voltage must remain low for this duration before triggering speed limiting

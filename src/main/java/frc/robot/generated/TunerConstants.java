@@ -108,8 +108,8 @@ public class TunerConstants {
     // CAN bus that the devices are located on;
     // All swerve devices must share the same CAN bus
     // Using CANivore for CANFD support with new swerve hardware
-    // IMPORTANT: Verify CANivore name in Phoenix Tuner X (default is "canivore")
-    public static final CANBus kCANBus = new CANBus("CANivore_3360");
+    // CANivore name configured in RobotConfig.CANIVORE_NAME
+    public static final CANBus kCANBus = new CANBus(RobotConfig.CANIVORE_NAME);
 
     // Theoretical free speed (m/s) at 12 V applied output;
     // This needs to be tuned to your individual robot

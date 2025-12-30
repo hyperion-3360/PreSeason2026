@@ -4,15 +4,15 @@ package frc.robot;
  * Central hardware profile switch for swerve modules. Flip ACTIVE_SWERVE to target your hardware
  * without touching generated files.
  *
- * <p>NOTE: Fill the SDS_MK4I constants with your real values (IDs, inversions, ratios) once your
- * MK4i kit is installed. For now, they mirror the WCP values so code compiles.
+ * <p>NOTE: Fill the SDS_MK4N constants with your real values (IDs, inversions) once your MK4n kit
+ * is installed. Gear ratios are set to official SDS MK4n L2 specs.
  */
 public final class RobotConfig {
     private RobotConfig() {}
 
     public enum SwerveProfile {
         WCP_SWERVEX_CTRE,
-        SDS_MK4I_L2
+        SDS_MK4N_L2 // MK4n (newer version), not MK4i
     }
 
     public enum MotorType {
@@ -21,12 +21,15 @@ public final class RobotConfig {
     }
 
     /** Change this single line to switch robot hardware profile. */
-    public static final SwerveProfile ACTIVE_SWERVE = SwerveProfile.SDS_MK4I_L2;
+    public static final SwerveProfile ACTIVE_SWERVE = SwerveProfile.SDS_MK4N_L2;
 
     /** Change these to mix and match motor types for drive and steer. */
     public static final MotorType DRIVE_MOTOR = MotorType.FALCON_500;
 
     public static final MotorType STEER_MOTOR = MotorType.FALCON_500;
+
+    /** CANivore name - update this to match your Phoenix Tuner X configuration. */
+    public static final String CANIVORE_NAME = "CANivore_3360";
 
     // ---- WCP Swerve X (current robot) ----
     private static final class WCP {
@@ -50,26 +53,26 @@ public final class RobotConfig {
         static final double SPEED_12V_MPS = 4.06; // m/s (feedforward scale)
     }
 
-    // ---- SDS MK4i L2 (new kit) ----
-    private static final class MK4I {
+    // ---- SDS MK4n L2 (new kit) ----
+    private static final class MK4N {
         // TODO: Replace placeholders with real IDs when wired
         static final int FL_DRIVE = 1, FL_STEER = 2, FL_ENC = 33;
         static final int FR_DRIVE = 3, FR_STEER = 4, FR_ENC = 32;
         static final int BL_DRIVE = 7, BL_STEER = 8, BL_ENC = 34;
         static final int BR_DRIVE = 5, BR_STEER = 6, BR_ENC = 31;
 
-        // TODO: Confirm/adjust inversions for MK4i once installed
+        // TODO: Confirm/adjust inversions for MK4n once installed
         static final boolean FL_STEER_INV = WCP.FL_STEER_INV, FL_ENC_INV = WCP.FL_ENC_INV;
         static final boolean FR_STEER_INV = WCP.FR_STEER_INV, FR_ENC_INV = WCP.FR_ENC_INV;
         static final boolean BL_STEER_INV = WCP.BL_STEER_INV, BL_ENC_INV = WCP.BL_ENC_INV;
         static final boolean BR_STEER_INV = WCP.BR_STEER_INV, BR_ENC_INV = WCP.BR_ENC_INV;
 
-        // TODO: Set official MK4i L2 ratios and wheel radius (inches) once confirmed
-        static final double DRIVE_GEAR_RATIO = 5.902777777777778; // placeholder
-        static final double STEER_GEAR_RATIO = 18.75; // placeholder
-        static final double COUPLE_RATIO = 3.125; // placeholder
+        // Official SDS MK4n L2 gear ratios (confirmed from SDS spec sheet)
+        static final double DRIVE_GEAR_RATIO = 5.357142857142857; // L2 = 5.36:1
+        static final double STEER_GEAR_RATIO = 21.428571428571427; // MK4n = 150/7
+        static final double COUPLE_RATIO = 3.5555555555555554; // Coupling ratio for MK4n
         static final double WHEEL_RADIUS_IN = 2.0; // 4" wheel -> 2.0" radius
-        static final double SPEED_12V_MPS = WCP.SPEED_12V_MPS; // placeholder until SysId
+        static final double SPEED_12V_MPS = 4.73; // Theoretical max speed L2 w/ Falcon 500
     }
 
     // ---- Motor-Specific Current Limits ----
@@ -96,108 +99,108 @@ public final class RobotConfig {
     }
 
     // ---- Public helpers used by TunerConstants ----
-    public static boolean isMk4i() {
-        return ACTIVE_SWERVE == SwerveProfile.SDS_MK4I_L2;
+    public static boolean isMk4n() {
+        return ACTIVE_SWERVE == SwerveProfile.SDS_MK4N_L2;
     }
 
     public static int flDrive() {
-        return isMk4i() ? MK4I.FL_DRIVE : WCP.FL_DRIVE;
+        return isMk4n() ? MK4N.FL_DRIVE : WCP.FL_DRIVE;
     }
 
     public static int flSteer() {
-        return isMk4i() ? MK4I.FL_STEER : WCP.FL_STEER;
+        return isMk4n() ? MK4N.FL_STEER : WCP.FL_STEER;
     }
 
     public static int flEnc() {
-        return isMk4i() ? MK4I.FL_ENC : WCP.FL_ENC;
+        return isMk4n() ? MK4N.FL_ENC : WCP.FL_ENC;
     }
 
     public static int frDrive() {
-        return isMk4i() ? MK4I.FR_DRIVE : WCP.FR_DRIVE;
+        return isMk4n() ? MK4N.FR_DRIVE : WCP.FR_DRIVE;
     }
 
     public static int frSteer() {
-        return isMk4i() ? MK4I.FR_STEER : WCP.FR_STEER;
+        return isMk4n() ? MK4N.FR_STEER : WCP.FR_STEER;
     }
 
     public static int frEnc() {
-        return isMk4i() ? MK4I.FR_ENC : WCP.FR_ENC;
+        return isMk4n() ? MK4N.FR_ENC : WCP.FR_ENC;
     }
 
     public static int blDrive() {
-        return isMk4i() ? MK4I.BL_DRIVE : WCP.BL_DRIVE;
+        return isMk4n() ? MK4N.BL_DRIVE : WCP.BL_DRIVE;
     }
 
     public static int blSteer() {
-        return isMk4i() ? MK4I.BL_STEER : WCP.BL_STEER;
+        return isMk4n() ? MK4N.BL_STEER : WCP.BL_STEER;
     }
 
     public static int blEnc() {
-        return isMk4i() ? MK4I.BL_ENC : WCP.BL_ENC;
+        return isMk4n() ? MK4N.BL_ENC : WCP.BL_ENC;
     }
 
     public static int brDrive() {
-        return isMk4i() ? MK4I.BR_DRIVE : WCP.BR_DRIVE;
+        return isMk4n() ? MK4N.BR_DRIVE : WCP.BR_DRIVE;
     }
 
     public static int brSteer() {
-        return isMk4i() ? MK4I.BR_STEER : WCP.BR_STEER;
+        return isMk4n() ? MK4N.BR_STEER : WCP.BR_STEER;
     }
 
     public static int brEnc() {
-        return isMk4i() ? MK4I.BR_ENC : WCP.BR_ENC;
+        return isMk4n() ? MK4N.BR_ENC : WCP.BR_ENC;
     }
 
     public static boolean flSteerInv() {
-        return isMk4i() ? MK4I.FL_STEER_INV : WCP.FL_STEER_INV;
+        return isMk4n() ? MK4N.FL_STEER_INV : WCP.FL_STEER_INV;
     }
 
     public static boolean flEncInv() {
-        return isMk4i() ? MK4I.FL_ENC_INV : WCP.FL_ENC_INV;
+        return isMk4n() ? MK4N.FL_ENC_INV : WCP.FL_ENC_INV;
     }
 
     public static boolean frSteerInv() {
-        return isMk4i() ? MK4I.FR_STEER_INV : WCP.FR_STEER_INV;
+        return isMk4n() ? MK4N.FR_STEER_INV : WCP.FR_STEER_INV;
     }
 
     public static boolean frEncInv() {
-        return isMk4i() ? MK4I.FR_ENC_INV : WCP.FR_ENC_INV;
+        return isMk4n() ? MK4N.FR_ENC_INV : WCP.FR_ENC_INV;
     }
 
     public static boolean blSteerInv() {
-        return isMk4i() ? MK4I.BL_STEER_INV : WCP.BL_STEER_INV;
+        return isMk4n() ? MK4N.BL_STEER_INV : WCP.BL_STEER_INV;
     }
 
     public static boolean blEncInv() {
-        return isMk4i() ? MK4I.BL_ENC_INV : WCP.BL_ENC_INV;
+        return isMk4n() ? MK4N.BL_ENC_INV : WCP.BL_ENC_INV;
     }
 
     public static boolean brSteerInv() {
-        return isMk4i() ? MK4I.BR_STEER_INV : WCP.BR_STEER_INV;
+        return isMk4n() ? MK4N.BR_STEER_INV : WCP.BR_STEER_INV;
     }
 
     public static boolean brEncInv() {
-        return isMk4i() ? MK4I.BR_ENC_INV : WCP.BR_ENC_INV;
+        return isMk4n() ? MK4N.BR_ENC_INV : WCP.BR_ENC_INV;
     }
 
     public static double driveGearRatio() {
-        return isMk4i() ? MK4I.DRIVE_GEAR_RATIO : WCP.DRIVE_GEAR_RATIO;
+        return isMk4n() ? MK4N.DRIVE_GEAR_RATIO : WCP.DRIVE_GEAR_RATIO;
     }
 
     public static double steerGearRatio() {
-        return isMk4i() ? MK4I.STEER_GEAR_RATIO : WCP.STEER_GEAR_RATIO;
+        return isMk4n() ? MK4N.STEER_GEAR_RATIO : WCP.STEER_GEAR_RATIO;
     }
 
     public static double coupleRatio() {
-        return isMk4i() ? MK4I.COUPLE_RATIO : WCP.COUPLE_RATIO;
+        return isMk4n() ? MK4N.COUPLE_RATIO : WCP.COUPLE_RATIO;
     }
 
     public static double wheelRadiusIn() {
-        return isMk4i() ? MK4I.WHEEL_RADIUS_IN : WCP.WHEEL_RADIUS_IN;
+        return isMk4n() ? MK4N.WHEEL_RADIUS_IN : WCP.WHEEL_RADIUS_IN;
     }
 
     public static double speedAt12V() {
-        return isMk4i() ? MK4I.SPEED_12V_MPS : WCP.SPEED_12V_MPS;
+        return isMk4n() ? MK4N.SPEED_12V_MPS : WCP.SPEED_12V_MPS;
     }
 
     // ---- Current Limit Getters (based on motor type) ----
@@ -241,5 +244,17 @@ public final class RobotConfig {
 
     public static double driveSlipCurrentAmps() {
         return isDriveKraken() ? KrakenLimits.SLIP_CURRENT_A : FalconLimits.SLIP_CURRENT_A;
+    }
+
+    /**
+     * Returns the DCMotor model for the configured drive motor type.
+     *
+     * @param numMotors Number of motors per module (typically 1)
+     * @return DCMotor instance (Kraken X60 or Falcon 500)
+     */
+    public static edu.wpi.first.math.system.plant.DCMotor getDriveMotor(int numMotors) {
+        return isDriveKraken()
+                ? edu.wpi.first.math.system.plant.DCMotor.getKrakenX60(numMotors)
+                : edu.wpi.first.math.system.plant.DCMotor.getFalcon500(numMotors);
     }
 }

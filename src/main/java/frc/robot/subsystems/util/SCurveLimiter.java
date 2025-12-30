@@ -51,7 +51,13 @@ public final class SCurveLimiter {
         v += a * dt;
 
         // Anti-windup at saturation: if pegged and still pushing, stop accelerating
-        if ((v >= 0.999 * vmax && a > 0) || (v <= -0.999 * vmax && a < 0)) {
+        // Uses configurable threshold from Constants to prevent overshoot
+        double saturatedPosThreshold =
+                Constants.DriveConstants.SCURVE_ANTIWINDUP_THRESHOLD * vmax;
+        double saturatedNegThreshold =
+                -Constants.DriveConstants.SCURVE_ANTIWINDUP_THRESHOLD * vmax;
+
+        if ((v >= saturatedPosThreshold && a > 0) || (v <= saturatedNegThreshold && a < 0)) {
             v = MathUtil.clamp(v, -vmax, vmax);
             a = 0;
         }

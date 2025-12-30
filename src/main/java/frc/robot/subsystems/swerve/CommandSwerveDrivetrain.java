@@ -364,9 +364,9 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
                             TunerConstants.kSpeedAt12Volts.in(
                                     MetersPerSecond), // Max drive speed
                             1.2, // Wheel COF (coefficient of friction) - typical for carpet
-                            DCMotor.getKrakenX60(
-                                    1), // Drive motor (Kraken or Falcon - update if needed)
-                            40.0, // Drive current limit (A)
+                            frc.robot.RobotConfig.getDriveMotor(
+                                    1), // Drive motor (dynamically selected from RobotConfig)
+                            frc.robot.RobotConfig.driveStatorLimitAmps(), // Drive current limit (A) - dynamic
                             1); // Drive motor count per module
 
             // Module locations from TunerConstants (front-left position as example)
