@@ -128,7 +128,7 @@ public class TunerConstants {
 
     public static final SwerveDrivetrainConstants DrivetrainConstants =
             new SwerveDrivetrainConstants()
-                    .withCANBusName(kCANBus.getName())
+                    .withCANBusName("CANivore_3360")
                     .withPigeon2Id(kPigeonId)
                     .withPigeon2Configs(pigeonConfigs);
 
@@ -166,7 +166,7 @@ public class TunerConstants {
         if (!RobotBase.isReal()) return Rotations.of(0.0);
 
         var cfg = new CANcoderConfiguration();
-        try (CANcoder enc = new CANcoder(encId)) { // <- closes automatically
+        try (CANcoder enc = new CANcoder(encId, kCANBus.getName())) { // <- closes automatically
             var sc = enc.getConfigurator().refresh(cfg);
             if (!sc.isOK()) {
                 System.out.printf(
