@@ -177,7 +177,7 @@ public class TunerConstants {
 
         var cfg = new CANcoderConfiguration();
         // CRITICAL: Must specify CANivore bus to read from correct device!
-        try (CANcoder enc = new CANcoder(encId, kCANBus.getName())) { // <- closes automatically
+        try (CANcoder enc = new CANcoder(encId, kCANBus)) { // <- closes automatically
             var sc = enc.getConfigurator().refresh(cfg);
             if (!sc.isOK()) {
                 System.out.printf(

@@ -12,6 +12,7 @@ import edu.wpi.first.wpilibj.RobotBase;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
@@ -251,7 +252,7 @@ public class RobotContainer {
                         () -> {
                             System.out.println(
                                     "[Auto-Aim] Both triggers pressed - holding for 3 seconds...");
-                            Haptics.buzzShort(joystick).schedule();
+                            CommandScheduler.getInstance().schedule(Haptics.buzzShort(joystick));
                         }));
 
         // Toggle after 3 second hold
@@ -265,11 +266,13 @@ public class RobotContainer {
                                         autoAimPID.reset();
                                         System.out.println(
                                                 "[Auto-Aim] ENABLED - Robot will auto-rotate to closest AprilTag");
-                                        Haptics.buzzOK(joystick).schedule();
+                                        CommandScheduler.getInstance()
+                                                .schedule(Haptics.buzzOK(joystick));
                                     } else {
                                         System.out.println(
                                                 "[Auto-Aim] DISABLED - Manual rotation control");
-                                        Haptics.buzzShort(joystick).schedule();
+                                        CommandScheduler.getInstance()
+                                                .schedule(Haptics.buzzShort(joystick));
                                     }
                                 }));
 
@@ -334,7 +337,8 @@ public class RobotContainer {
                                                     "[SysId] Switched to "
                                                             + newRoutine
                                                             + " routine");
-                                            Haptics.buzzShort(joystick).schedule();
+                                            CommandScheduler.getInstance()
+                                                    .schedule(Haptics.buzzShort(joystick));
                                         })
                                 .ignoringDisable(true));
 
@@ -348,7 +352,8 @@ public class RobotContainer {
                                     drivetrain.seedFieldCentric();
                                     System.out.println(
                                             "[Field-Centric] RESET - Robot forward is now field forward");
-                                    Haptics.buzzOK(joystick).schedule();
+                                    CommandScheduler.getInstance()
+                                            .schedule(Haptics.buzzOK(joystick));
                                 }));
 
         drivetrain.registerTelemetry(logger::telemeterize);
